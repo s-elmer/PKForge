@@ -287,7 +287,7 @@ public sealed class HomePage : ContentPage, IPadHandler
                 var choice = await PadMenu.ShowAsync(_hostGrid, "Get started", null,
                     new PadOption("Link an emulator", IconPath: "link"),
                     new PadOption("Open a single save file", IconPath: "file"),
-                    new PadOption($"Download the sprite pack ({SpritePackDownloader.SizeHint})", IconPath: "download"),
+                    new PadOption($"Download the sprite pack ({SpritePackDownloader.RemainingSizeHint()})", IconPath: "download"),
                     new PadOption("Maybe later", IconPath: "close"));
                 switch (choice)
                 {
@@ -843,7 +843,7 @@ public sealed class HomePage : ContentPage, IPadHandler
             new PadOption(trainerProfiles.UseCurrentTrainerForGeneration
                 ? "Generated Pokémon obey trainer: ON"
                 : "Generated Pokémon obey trainer: OFF", IconPath: "profile"),
-            new PadOption($"Download full sprite pack ({SpritePackDownloader.SizeHint})", IconPath: "download"),
+            new PadOption($"Download full sprite pack ({SpritePackDownloader.RemainingSizeHint()})", IconPath: "download"),
             new PadOption("Rescan games", IconPath: "refresh"),
             new PadOption("Scan report", IconPath: "report"),
             new PadOption("Share logs", IconPath: "export", Detail: "Crash reports and recent activity, to send us when something goes wrong."),
