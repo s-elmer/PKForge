@@ -87,7 +87,7 @@ public sealed class CollectionDexPage : IPadPagingHandler
         View hints = Kit.WindowHints(
             ("A", "Actions", () => _ = ShowActionsAsync()),
             ("B", "Done", () => Close()),
-            ("LR", "Page", null),
+            ("LR", "Page", () => OnPadButton(PadButton.R)),
             ("X", "Scope", () => _ = ShowScopeMenuAsync()),
             ("Y", "Missing only", ToggleMissingOnly),
             ("+", "Autopilot", () => _ = OpenAutopilotAsync()));

@@ -165,7 +165,7 @@ public sealed class EvolutionCard : IPadHandler
         content.Children.Add(_changes);
         content.Children.Add(buttons);
         content.Children.Add(Kit.WindowHints(
-            ("◀▶", "Branch", null),
+            ("◀▶", "Branch", () => OnPadButton(PadButton.Right)),
             ("A", "Evolve", Confirm),
             ("B", "Cancel", () => Close(null))));
 
