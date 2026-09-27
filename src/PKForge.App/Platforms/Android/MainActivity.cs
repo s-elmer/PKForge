@@ -17,6 +17,48 @@ namespace PKForge.App;
     ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
 public sealed class MainActivity : MauiAppCompatActivity
 {
+    private const string MovedToMainScreen = "pkforge.moved-to-main-screen";
+
+    protected override void OnCreate(Bundle? savedInstanceState)
+    {
+        base.OnCreate(savedInstanceState);
+        if (savedInstanceState is null) MoveToMainScreenIfLaunchedBelow();
+    }
+
+    /// <summary>
+    /// A dual-screen handheld can start PKForge on its lower panel, which then took the top
+    /// panel for the second screen: the whole layout upside down. Relaunch once on the main
+    /// display; if Android keeps it below, say so (the lower screen stays off, see
+    /// <see cref="AndroidSecondaryDisplayHost.LaunchedOnLowerScreen"/>).
+    /// </summary>
+    private void MoveToMainScreenIfLaunchedBelow()
+    {
+        if (!OperatingSystem.IsAndroidVersionAtLeast(30) || !AndroidSecondaryDisplayHost.LaunchedOnLowerScreen(this)) return;
+        if (Intent?.GetBooleanExtra(MovedToMainScreen, false) == true)
+        {
+            Services.AppLog.Warn("second", $"Still on display {Display?.DisplayId} after moving to the main screen");
+            Android.Widget.Toast.MakeText(this,
+                "PKForge opened on the lower screen. For the two-screen layout, launch it from the main screen.",
+                Android.Widget.ToastLength.Long)?.Show();
+            return;
+        }
+        try
+        {
+            var relaunch = new Intent(this, typeof(MainActivity))
+                .AddFlags(ActivityFlags.NewTask | ActivityFlags.MultipleTask)
+                .PutExtra(MovedToMainScreen, true);
+            if (ActivityOptions.MakeBasic() is not { } options) return;
+            options.SetLaunchDisplayId(Display.DefaultDisplay);
+            Services.AppLog.Info("second", $"Launched on display {Display?.DisplayId}; moving to the main screen");
+            StartActivity(relaunch, options.ToBundle());
+            FinishAndRemoveTask();
+        }
+        catch (Exception error) when (error is Java.Lang.SecurityException or ActivityNotFoundException)
+        {
+            Services.AppLog.Error("second", "Could not move to the main screen", error);
+        }
+    }
+
     protected override void OnPause()
     {
         // A Presentation owns a separate window, so Android does not reliably hide it
@@ -266,6 +308,12 @@ public sealed class AndroidSecondaryDisplayHost(IServiceProvider services) : ISe
 
     public bool IsAvailable => Services.SecondScreenMode.Allowed && ResolveDisplay() is not null;
 
+    /// <summary>True on a dual-screen handheld when PKForge runs on a panel other than the main one.</summary>
+    internal static bool LaunchedOnLowerScreen(Activity activity) =>
+        OperatingSystem.IsAndroidVersionAtLeast(30)
+        && activity.Display is { } display && display.DisplayId != Display.DefaultDisplay
+        && DualScreenMakers.Any(m => (Android.OS.Build.Manufacturer ?? "").Contains(m, StringComparison.OrdinalIgnoreCase));
+
     public ValueTask ShowAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -404,6 +452,8 @@ public sealed class AndroidSecondaryDisplayHost(IServiceProvider services) : ISe
         var own = OperatingSystem.IsAndroidVersionAtLeast(30)
             ? Platform.CurrentActivity?.Display?.DisplayId ?? Display.DefaultDisplay
             : Display.DefaultDisplay;
+        // Running on the lower panel: the main one must never become the "second screen".
+        if (Platform.CurrentActivity is { } current && LaunchedOnLowerScreen(current)) return null;
 
         bool Usable(Display d) =>
             d.DisplayId != own && d.IsValid && d.State != DisplayState.Off
