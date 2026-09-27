@@ -95,6 +95,25 @@ public sealed class LuminescentPlatinumTests
     }
 
     [Fact]
+    public void LuminescentPokemonAreNeverFlaggedIllegal()
+    {
+        // PKHeX judges Lumi's own species and forms by retail rules; no verdict beats a false one.
+        using var session = new SaveEngine().OpenSession(LuminescentSave());
+        Assert.True(new LegalizerService().Generate(session, 0, 0,
+            new GenerationRequest(25, 20, Shiny: false, Nature: null, Ability: null, Ball: null, Moves: null)).Success);
+        var engine = (SaveEngineSession)session;
+        var pk = engine.GetEntity(0, 0);
+        pk.Move1 = 0xFFF; // nothing retail would accept
+        pk.RefreshChecksum();
+        engine.SaveFile.SetBoxSlotAtIndex(pk, 0, 0, EntityImportSettings.None);
+
+        Assert.False(session.SupportsLegalityAnalysis);
+        var legality = new LegalityService();
+        Assert.True(legality.Analyze(session, 0, 0).Valid);
+        Assert.Empty(legality.Sweep(session));
+    }
+
+    [Fact]
     public void LuminescentExclusiveItemsHaveNamesPouchesAndRoundTrip()
     {
         using var session = new SaveEngine().OpenSession(LuminescentSave());

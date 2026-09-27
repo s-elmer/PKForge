@@ -181,6 +181,9 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
         // No transient "analyzing" flash: stay blank until the verdict is ready.
         LegalityBadge = string.Empty;
         LegalityText = string.Empty;
+        // Romhacks PKHeX cannot judge (Luminescent Platinum's own species and forms) get no
+        // verdict at all rather than a false "illegal".
+        if (!engineSession.SupportsLegalityAnalysis) return;
         Task.Run(() =>
         {
             var report = _legality.Analyze(engineSession, BoxIndex, slot);

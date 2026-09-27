@@ -2647,6 +2647,8 @@ public sealed class LegalityService : ILegalityService
         var detail = engineSession.ReadEntity(box, slot);
         if (detail.IsEmpty)
             return new LegalityReport(true, ["Empty slot."]);
+        if (!engineSession.SupportsLegalityAnalysis)
+            return new LegalityReport(true, ["Legality is not checked for this game."]);
 
         var analysis = new LegalityAnalysis(engineSession.GetEntity(box, slot));
         var report = analysis.Report(verbose: false);
@@ -2660,6 +2662,8 @@ public sealed class LegalityService : ILegalityService
         ArgumentNullException.ThrowIfNull(session);
         if (session is not SaveEngineSession engineSession)
             throw new ArgumentException("Session was not created by this engine.", nameof(session));
+
+        if (!engineSession.SupportsLegalityAnalysis) return []; // no verdicts, so no red dots
 
         // Snapshot once: it re-parses every slot, and the verdicts must describe one
         // consistent generation of the save even if the UI mutates mid-sweep.
