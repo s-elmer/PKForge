@@ -14,8 +14,12 @@ plugins' sources against our pinned Core so versions cannot drift).
 
 ## Non-negotiable invariants
 
-1. **PKHeX.Core is pristine** — never edit `external/PKHeX`. All engine access goes
-   through adapters in `PKForge.Engine`.
+1. **PKHeX.Core comes from PKForge's fork** (`sofianeelhor/PKForge-PKHeX`, pinned in
+   `external/PKHeX`). The fork carries only what PKHeX itself cannot: save formats and data
+   for games it does not know (Luminescent Platinum, Pokémon Compass), one `pkforge/*`
+   branch per change. Everything else stays in PKForge: all engine access goes through
+   adapters in `PKForge.Engine`, and game-specific behaviour (Lumi forms, held items,
+   legality) lives there too.
 2. **Data safety is sacred** — every write is **validate → backup → atomic write**. No
    exceptions, even for bulk ops. Invalid candidate = no backup, no write (test-covered).
 3. **Offline-first** — assets are bundled or cached at runtime; the app works with no network.

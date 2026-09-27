@@ -722,7 +722,9 @@ public sealed class SaveEngineSession : ISaveEngineSession
     }
 
     public bool SupportsBoxTools => true;
-    public bool SupportsLegalityAnalysis => true;
+    // Stock legality data describes retail games: on Luminescent Platinum (its own encounters,
+    // often randomized) every Pokémon would read illegal, so the checks are off, as in PKLumiHex.
+    public bool SupportsLegalityAnalysis => !Luminescent.LumiData.IsLumi(_save);
 
     public int BatchApply(IReadOnlyList<string> instructions, IReadOnlyList<int>? boxes = null)
     {
@@ -2096,7 +2098,8 @@ public sealed class SaveEngineSession : ISaveEngineSession
     {
         ThrowIfDisposed();
         var strings = GameInfo.Strings; // app language, cached by the engine
-        return FormConverter.GetFormList((ushort)species, strings.Types, strings.forms, _save.Context);
+        var list = FormConverter.GetFormList((ushort)species, strings.Types, strings.forms, _save.Context);
+        return Luminescent.LumiData.IsLumi(_save) ? Luminescent.LumiData.FormList((ushort)species, list, strings.Types, strings.forms) : list;
     }
 
     public IReadOnlyList<int> GetAbilityChoices(int species, int form)

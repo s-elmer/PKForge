@@ -101,7 +101,8 @@ public static class MonFieldService
     private static string[] FormNames(PKM pk)
     {
         var strings = GameInfo.Strings;
-        return FormConverter.GetFormList(pk.Species, strings.Types, strings.forms, GameInfo.GenderSymbolUnicode, pk.Context);
+        var list = FormConverter.GetFormList(pk.Species, strings.Types, strings.forms, GameInfo.GenderSymbolUnicode, pk.Context);
+        return Luminescent.LumiData.IsLumi(pk) ? [.. Luminescent.LumiData.FormList(pk.Species, list, strings.Types, strings.forms)] : list;
     }
 
     /// <summary>The 0/1/2 ability slot; Gen 3-5 read it from their own storage.</summary>

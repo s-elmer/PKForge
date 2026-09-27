@@ -220,6 +220,7 @@ public sealed class HomePage : ContentPage, IPadHandler
             _crashOffered = true;
             _ = OfferCrashReportAsync();
         }
+        _ = IPlatformApplication.Current?.Services.GetService<SpritePackDownloader>()?.FetchAddOnsQuietlyAsync();
         // The lower screen shows the shelf's highlighted game while Home is in front.
         _secondClaim ??= IPlatformApplication.Current?.Services.GetService<SecondScreenState>()?.Routes.CreateClaim(SecondScreenOwner.Home);
         _secondClaim?.Activate();
