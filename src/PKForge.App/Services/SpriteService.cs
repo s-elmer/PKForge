@@ -359,9 +359,20 @@ public sealed class SpriteService : ISpriteService
     // every frame while it animates, and probing the disk each time would be wasteful.
     private readonly Dictionary<string, string?> _bdspPaths = new(StringComparer.Ordinal);
 
+    // Repaints of boxes that drew a pixel sprite for want of an add-on icon, so an add-on
+    // arriving in the background shows up without leaving the box.
+    private readonly Dictionary<string, Action> _awaitingAddOn = new(StringComparer.Ordinal);
+
     public void ForgetAddOnLookups()
     {
-        lock (_gate) _bdspPaths.Clear();
+        Action[] repaint;
+        lock (_gate)
+        {
+            _bdspPaths.Clear();
+            repaint = [.. _awaitingAddOn.Values.Distinct()];
+            _awaitingAddOn.Clear();
+        }
+        foreach (var invalidate in repaint) MainThread.BeginInvokeOnMainThread(invalidate);
     }
 
     public bool TryGetBdspIcon(SpriteLook look, Action onLoaded, out SKBitmap? icon)
@@ -377,7 +388,12 @@ public sealed class SpriteService : ISpriteService
                     .FirstOrDefault(File.Exists);
                 _bdspPaths[look.CacheKey] = path;
             }
-            if (path is null) return true; // not in the add-on (or not downloaded): pixel sprite
+            if (path is null)
+            {
+                // Not in the add-on, or not downloaded yet: pixel sprite until it arrives.
+                if (_awaitingAddOn.Count < 512) _awaitingAddOn[look.CacheKey] = onLoaded;
+                return true;
+            }
             var key = "bdsp-" + path;
             if (_cache.TryGetValue(key, out icon)) return true;
             if (!_loading.Add(key)) return false;

@@ -51,24 +51,11 @@ public sealed class SpritePackDownloader(ISpriteService sprites, IGameDataServic
 
     private static readonly HttpClient ArchiveHttp = new() { Timeout = Timeout.InfiniteTimeSpan };
 
-    /// <summary>
-    /// What a download would still fetch, for the menu label: the whole pack, or only the
-    /// add-ons a player who already has the pack is missing (a few dozen MB, not 600).
-    /// </summary>
-    public static string RemainingSizeHint()
-    {
-        var root = FileSystem.AppDataDirectory;
-        if (!File.Exists(Main.DoneMarker(root))) return SizeHint;
-        var bytes = AddOns.Where(a => !File.Exists(a.DoneMarker(root))).Sum(a => a.Bytes);
-        return bytes == 0 ? SizeHint : $"~{Math.Max(1, bytes >> 20)} MB";
-    }
-
     /// <summary>How many pack files this device still lacks; 0 once the pack is complete.</summary>
     public int CountMissing()
     {
         var root = FileSystem.AppDataDirectory;
-        return SpritePack.Entries([]).Count(e => !File.Exists(Path.Combine(root, e.CachePath))) + WantedItems(root).Count
-               + AddOns.Count(addOn => !File.Exists(addOn.DoneMarker(root)));
+        return SpritePack.Entries([]).Count(e => !File.Exists(Path.Combine(root, e.CachePath))) + WantedItems(root).Count;
     }
 
     // Many item names have no icon upstream. Once the archive is in, the ones it lacks are
@@ -88,12 +75,62 @@ public sealed class SpritePackDownloader(ISpriteService sprites, IGameDataServic
 
         await DownloadMissingAsync(root, spriteEntries, WantedItems(root), onProgress, cancellationToken).ConfigureAwait(false);
 
-        foreach (var addOn in AddOns.Where(a => !File.Exists(a.DoneMarker(root))))
+        await FetchAddOnsAsync(root, onProgress, cancellationToken).ConfigureAwait(false);
+    }
+
+    // One add-on download at a time: the quiet one and a full download share archive files.
+    private static readonly SemaphoreSlim AddOnGate = new(1, 1);
+    private DateTime _quietRetryAfter = DateTime.MinValue;
+
+    /// <summary>
+    /// Fetches the add-ons in the background for players who already have the main pack, so
+    /// new art arrives with an update and nobody has to download anything again. Silent: no
+    /// overlay, no status, only on Wi-Fi or Ethernet (never mobile data), and any failure is
+    /// logged and retried later. Whoever has no main pack gets add-ons with it instead.
+    /// </summary>
+    public async Task FetchAddOnsQuietlyAsync()
+    {
+        var root = FileSystem.AppDataDirectory;
+        if (DateTime.UtcNow < _quietRetryAfter || !File.Exists(Main.DoneMarker(root))
+            || AddOns.All(a => File.Exists(a.DoneMarker(root))))
+            return;
+        try
         {
-            if (await TryArchiveAsync(root, addOn, onProgress, cancellationToken).ConfigureAwait(false))
-                await File.WriteAllTextAsync(addOn.DoneMarker(root), addOn.Url, cancellationToken).ConfigureAwait(false);
+            var network = Connectivity.Current;
+            if (network.NetworkAccess != NetworkAccess.Internet
+                || !network.ConnectionProfiles.Any(p => p is ConnectionProfile.WiFi or ConnectionProfile.Ethernet))
+                return;
+            if (!await Task.Run(() => FetchAddOnsAsync(root, static (_, _) => { }, CancellationToken.None)).ConfigureAwait(false))
+            {
+                _quietRetryAfter = DateTime.UtcNow.AddMinutes(15);
+                AppLog.Warn("sprites", "Add-on download did not finish; will retry later");
+            }
         }
-        sprites.ForgetAddOnLookups(); // icons that were absent a minute ago may be here now
+        catch (Exception error)
+        {
+            _quietRetryAfter = DateTime.UtcNow.AddMinutes(15);
+            AppLog.Error("sprites", "Add-on download failed", error);
+        }
+    }
+
+    /// <summary>Downloads every add-on not yet unpacked; true when all of them are in.</summary>
+    private async Task<bool> FetchAddOnsAsync(string root, Action<string, double> onProgress, CancellationToken cancellationToken)
+    {
+        await AddOnGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var complete = true;
+            foreach (var addOn in AddOns.Where(a => !File.Exists(a.DoneMarker(root))))
+            {
+                if (await TryArchiveAsync(root, addOn, onProgress, cancellationToken).ConfigureAwait(false))
+                    await File.WriteAllTextAsync(addOn.DoneMarker(root), addOn.Url, cancellationToken).ConfigureAwait(false);
+                else
+                    complete = false;
+            }
+            sprites.ForgetAddOnLookups(); // icons that were absent a minute ago may be here now
+            return complete;
+        }
+        finally { AddOnGate.Release(); }
     }
 
     /// <summary>
