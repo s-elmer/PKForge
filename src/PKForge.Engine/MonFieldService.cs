@@ -101,6 +101,8 @@ public static class MonFieldService
     private static string[] FormNames(PKM pk)
     {
         var strings = GameInfo.Strings;
+        if (Luminescent.LumiData.IsLumi(pk) && Luminescent.LumiData.FormNames(pk.Species, strings.Types, strings.forms) is { } lumi)
+            return lumi;
         return FormConverter.GetFormList(pk.Species, strings.Types, strings.forms, GameInfo.GenderSymbolUnicode, pk.Context);
     }
 
