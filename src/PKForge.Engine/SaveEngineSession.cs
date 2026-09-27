@@ -1978,8 +1978,19 @@ public sealed class SaveEngineSession : ISaveEngineSession
             (int)e.Version, GameInfo.GetVersionName(e.Version),
             e.Language, LanguageName(e),
             e is IFatefulEncounter { FatefulEncounter: true },
-            e.TID16, e.SID16);
+            e.TID16, e.SID16,
+            WasEgg: HatchedFromEgg(e), SupportsWasEgg: e.Format >= 4);
     }
+
+    /// <summary>
+    /// The egg location a Pokémon that never was an egg carries: BDSP writes 65535, every
+    /// other format with the field writes 0. Reading "anything but 0" as hatched made every
+    /// BDSP catch look hatched.
+    /// </summary>
+    private static ushort NoEggLocation(PKM e) => e is PB8 ? Locations.Default8bNone : (ushort)0;
+
+    /// <summary>Hatched from an egg (or still one). Gen 1-3 keep no egg location, so it reads false there.</summary>
+    private static bool HatchedFromEgg(PKM e) => e.IsEgg || e.Format >= 4 && e.EggLocation != NoEggLocation(e);
 
     // MetDate/EggMetDate return null both when unset AND when unsupported by the format;
     // a probe write tells the two apart so the UI only offers dates the format keeps.
@@ -2028,6 +2039,17 @@ public sealed class SaveEngineSession : ISaveEngineSession
         if (edit.MetLevel is { } metLevel) e.MetLevel = (byte)Math.Clamp(metLevel, 0, 100);
         if (edit.EggLocation is { } eggLoc) e.EggLocation = (ushort)Math.Clamp(eggLoc, 0, ushort.MaxValue);
         if (edit.IsEgg is { } isEgg) e.IsEgg = isEgg;
+        // "Hatched from egg" is where it came from, not whether it is an egg now: No clears the
+        // egg location and date (to the format's own "none"), Yes gives it the daycare.
+        if (edit.WasEgg is { } wasEgg && e.Format >= 4 && !e.IsEgg && wasEgg != HatchedFromEgg(e))
+        {
+            if (wasEgg) e.EggLocation = EncounterSuggestion.GetSuggestedEncounterEggLocationEgg(e);
+            else
+            {
+                e.EggLocation = NoEggLocation(e);
+                e.EggMetDate = null;
+            }
+        }
         if (edit.Fateful is { } fateful && e is IFatefulEncounter f) f.FatefulEncounter = fateful;
         if (edit.TID is { } tid) e.TID16 = (ushort)Math.Clamp(tid, 0, ushort.MaxValue);
         if (edit.SID is { } sid) e.SID16 = (ushort)Math.Clamp(sid, 0, ushort.MaxValue);

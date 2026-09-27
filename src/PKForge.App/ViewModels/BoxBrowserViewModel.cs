@@ -439,7 +439,15 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
             var outcome = await Task.Run(() => operation(engineSession));
             if (!outcome.Success)
             {
+                // A refused edit (Make mine on an event gift, say) leaves the player on the same
+                // Pokémon with the reason, not on an empty editor with nothing selected.
+                var (keepBox, keepSlot) = (BoxIndex, SelectedSlot);
                 DiscardPartialEdits();
+                if (_sessions.Current is not null && keepSlot >= 0)
+                {
+                    BoxIndex = keepBox;
+                    SelectSlot(keepSlot);
+                }
                 Status = outcome.Message;
                 return false;
             }
