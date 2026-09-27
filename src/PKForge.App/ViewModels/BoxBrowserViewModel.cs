@@ -58,6 +58,7 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
     // Editor fields (strings for binding; parsed on save).
     [ObservableProperty] private string _editNickname = string.Empty;
     [ObservableProperty] private string _editLevel = string.Empty;
+    [ObservableProperty] private string _editFriendship = string.Empty;
     [ObservableProperty] private string _editSpecies = string.Empty;
     [ObservableProperty] private string _editNature = string.Empty;
     [ObservableProperty] private string _editAbility = string.Empty;
@@ -148,6 +149,7 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
 
         EditNickname = detail.Nickname;
         EditLevel = detail.Level.ToString();
+        EditFriendship = detail.Friendship.ToString();
         EditSpecies = detail.Species.ToString();
         EditNature = detail.Nature.ToString();
         EditAbility = detail.Ability.ToString();
@@ -218,6 +220,7 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
                 Species: ParseInt(EditSpecies),
                 Nickname: EditNickname.Length == 0 ? null : EditNickname,
                 Level: ParseInt(EditLevel),
+                Friendship: ParseInt(EditFriendship),
                 Nature: ParseInt(EditNature),
                 Ability: ParseInt(EditAbility),
                 HeldItem: ParseInt(EditHeldItem),

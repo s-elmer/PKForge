@@ -4335,6 +4335,16 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             return Task.CompletedTask;
         }, nameof(BoxBrowserViewModel.EditLevel));
         levelRow = level;
+        // Friendship (0-255): what friendship evolutions wait for (Golbat, Eevee, Riolu...).
+        // Gen 1 keeps none, so the row would edit nothing there.
+        View? friendshipRow = null;
+        var friendship = FocusBorder(FieldRow("Friendship", nameof(BoxBrowserViewModel.EditFriendship), shaded: false), "FRIENDSHIP", () =>
+        {
+            if (friendshipRow is not null) FocusEntry(friendshipRow);
+            return Task.CompletedTask;
+        }, nameof(BoxBrowserViewModel.EditFriendship));
+        friendshipRow = friendship;
+        friendship.IsVisible = (_sessionsFor()?.Generation ?? 3) >= 2;
         var nature = FocusBorder(NamedPicker("NATURE", nameof(BoxBrowserViewModel.EditNature), NaturePicker.DisplayNames(data.NatureNames),
             null, shaded: true, open: () => OpenNaturePickerAsync(data)), "Nature", () => OpenNaturePickerAsync(data));
         // Gen 1/2 have no natures: the row would edit nothing.
@@ -4521,7 +4531,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             {
                 hardcoreNote,
                 legality,
-                species, nickname, level, LevelInfoCard(), nature, ability, item,
+                species, nickname, level, LevelInfoCard(), nature, ability, item, friendship,
                 move1, move2, move3, move4,
                 stats, ivs, evs, ball, gender, ot, shiny,
                 save,
