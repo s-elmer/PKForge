@@ -490,6 +490,7 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
         catch (Exception error)
         {
             DiscardPartialEdits();
+            AppLog.Error("edit", $"Edit aborted ({action})", error);
             Status = $"Aborted: {error.Message}";
             return false;
         }
@@ -844,6 +845,7 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
         }
         catch (Exception error)
         {
+            AppLog.Error("edit", "Move aborted", error);
             Status = $"Move aborted: {error.Message}";
         }
         finally
