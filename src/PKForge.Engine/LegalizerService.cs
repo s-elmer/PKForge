@@ -142,7 +142,7 @@ public sealed class LegalizerService : ILegalizerService
         if (new LegalityAnalysis(current).Valid)
             return new GenerationOutcome(true, "Already legal.");
 
-        var repaired = save.Legalize(current);
+        var repaired = LegalizeKeepingOrigin(save, current);
         if (!new LegalityAnalysis(repaired).Valid)
             return new GenerationOutcome(false, "Could not find a legal repair for this mon.");
 
@@ -150,7 +150,107 @@ public sealed class LegalizerService : ILegalizerService
             save.SetPartySlotAtIndex(repaired, slot, EntityImportSettings.None);
         else
             save.SetBoxSlotAtIndex(repaired, box, slot, EntityImportSettings.None);
-        return new GenerationOutcome(true, "Legalized.");
+        return new GenerationOutcome(true, OriginNote(current, repaired) is { } note ? $"Legalized. {note}" : "Legalized.");
+    }
+
+    /// <summary>
+    /// Auto-Legality, told to keep where the Pokémon came from. It was handed no analysis of
+    /// the current Pokémon, so its own "try the original encounter first" step never ran, and
+    /// it tries eggs before every other encounter: eggs allow any PID, so a caught shiny came
+    /// back hatched. A Pokémon that was not an egg now tries its original catch encounter,
+    /// then wild, static, trade and event ones, and eggs last; its ball stays when still legal.
+    /// </summary>
+    internal static PKM LegalizeKeepingOrigin(SaveFile save, PKM current)
+    {
+        var analysis = new LegalityAnalysis(current);
+        if (current.IsEgg || current.WasEgg)
+            return save.Legalize(current, analysis);
+        if (RegenerateAtOrigin(save, current) is { } atOrigin)
+            return atOrigin;
+        // The analysis's best match for a broken caught Pokémon is often an egg (eggs fit any
+        // PID): handing it over would put the egg first. Only a real catch leads the search.
+        var lead = analysis.EncounterOriginal is IEncounterEgg ? null : analysis;
+
+        PKM repaired;
+        lock (TrainerGenerationLock)
+        {
+            var previous = EncounterMovesetGenerator.PriorityList;
+            try
+            {
+                EncounterMovesetGenerator.PriorityList =
+                    [EncounterTypeGroup.Slot, EncounterTypeGroup.Static, EncounterTypeGroup.Trade, EncounterTypeGroup.Mystery, EncounterTypeGroup.Egg];
+                repaired = save.Legalize(current, lead);
+            }
+            finally { EncounterMovesetGenerator.PriorityList = previous; }
+        }
+
+        if (repaired.Ball != current.Ball)
+        {
+            var withBall = repaired.Clone();
+            withBall.Ball = current.Ball;
+            withBall.RefreshChecksum();
+            if (new LegalityAnalysis(withBall).Valid) repaired = withBall;
+        }
+        return repaired;
+    }
+
+    /// <summary>
+    /// Rebuilds the Pokémon from an encounter at its own met location and game, keeping what
+    /// the player asked for (shiny, gender, nature) and, where still legal, its ball, level,
+    /// moves and nickname. Auto-Legality walks every encounter of the species first and ran
+    /// out of time before reaching the right place; this goes straight there. Null when no
+    /// encounter there yields a legal Pokémon.
+    /// </summary>
+    private static PKM? RegenerateAtOrigin(SaveFile save, PKM current)
+    {
+        if (current.MetLocation == 0) return null;
+        var moves = new[] { current.Move1, current.Move2, current.Move3, current.Move4 }.Where(m => m != 0).ToArray();
+        var template = current.Clone();
+        var here = EncounterMovesetGenerator.GenerateEncounters(template, save, moves, current.Version)
+            .Where(e => e is not IEncounterEgg && e is ILocation l && l.Location == current.MetLocation)
+            .Take(32);
+        var criteria = new EncounterCriteria
+        {
+            Shiny = current.IsShiny ? Shiny.Always : Shiny.Never,
+            Gender = current.Gender is 0 or 1 ? (Gender)current.Gender : Gender.Random,
+            Nature = current.Nature,
+        };
+        foreach (var encounter in here)
+        {
+            PKM made;
+            try { made = encounter.ConvertToPKM(save, criteria); }
+            catch (ArgumentException) { continue; }
+            if (made.IsShiny != current.IsShiny || !new LegalityAnalysis(made).Valid) continue;
+
+            // Put back what the player chose wherever the result stays legal.
+            TryKeep(made, pk => pk.Ball = current.Ball);
+            if (current.CurrentLevel > made.CurrentLevel) TryKeep(made, pk => { pk.CurrentLevel = current.CurrentLevel; pk.ResetPartyStats(); });
+            if (moves.Length > 0) TryKeep(made, pk => { pk.SetMoves(moves); pk.HealPP(); });
+            if (current.IsNicknamed) TryKeep(made, pk => { pk.IsNicknamed = true; pk.Nickname = current.Nickname; });
+            return made;
+        }
+        return null;
+    }
+
+    /// <summary>Applies <paramref name="change"/> only if the Pokémon stays legal; otherwise leaves it as it was.</summary>
+    private static void TryKeep(PKM pk, Action<PKM> change)
+    {
+        var trial = pk.Clone();
+        change(trial);
+        trial.RefreshChecksum();
+        if (!new LegalityAnalysis(trial).Valid) return;
+        change(pk);
+        pk.RefreshChecksum();
+    }
+
+    /// <summary>Says so when the only legal repair had to change the origin, so it is never a surprise.</summary>
+    private static string? OriginNote(PKM before, PKM after)
+    {
+        if (!before.IsEgg && !before.WasEgg && (after.WasEgg || after.IsEgg))
+            return "No legal version keeps its catch origin, so it is now hatched from an egg.";
+        if (before.MetLocation != after.MetLocation && !after.WasEgg)
+            return "Its met location changed to one where it can legally appear.";
+        return null;
     }
 
     public GenerationOutcome LegalizeSlots(ISaveEngineSession session, IReadOnlyList<(int Box, int Slot)> slots,
@@ -171,7 +271,7 @@ public sealed class LegalizerService : ILegalizerService
             var current = box == -1 ? save.GetPartySlotAtIndex(slot) : save.GetBoxSlotAtIndex(box, slot);
             if (current.Species != 0 && !new LegalityAnalysis(current).Valid)
             {
-                var candidate = save.Legalize(current);
+                var candidate = LegalizeKeepingOrigin(save, current);
                 if (new LegalityAnalysis(candidate).Valid)
                 {
                     if (box == -1)
