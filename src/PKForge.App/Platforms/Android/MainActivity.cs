@@ -264,7 +264,7 @@ public sealed class AndroidSecondaryDisplayHost(IServiceProvider services) : ISe
     private ContentPage? _page;
     private bool _resumeAfterActivityPause;
 
-    public bool IsAvailable => ResolveDisplay() is not null;
+    public bool IsAvailable => Services.SecondScreenMode.Allowed && ResolveDisplay() is not null;
 
     public ValueTask ShowAsync(CancellationToken cancellationToken = default)
     {
@@ -288,9 +288,28 @@ public sealed class AndroidSecondaryDisplayHost(IServiceProvider services) : ISe
                 boxPage.Cleanup();
             else if (_page is Views.PokeparkJournalPage journalPage)
                 journalPage.Cleanup();
-            _page = services.GetRequiredService<Views.SecondScreenBoxPage>();
-            _presentation = new PagePresentation(activity, display, _page, services);
-            _presentation.Show();
+            _presentation = null;
+            _page = null;
+            if (!Services.SecondScreenMode.Allowed) return ValueTask.CompletedTask;
+
+            // Built and shown as locals: a display Android refuses (a virtual or removed one
+            // raises BadToken/InvalidDisplay) leaves nothing half-built, and PKForge carries
+            // on with one screen instead of crashing.
+            var page = services.GetRequiredService<Views.SecondScreenBoxPage>();
+            var presentation = new PagePresentation(activity, display, page, services);
+            try
+            {
+                presentation.Show();
+            }
+            catch (Exception error) when (error is WindowManagerBadTokenException or WindowManagerInvalidDisplayException or Java.Lang.Exception)
+            {
+                page.Cleanup();
+                Services.SecondScreenMode.DisableForSession($"display {display.DisplayId} ({display.Name}) refused the lower screen", error);
+                return ValueTask.CompletedTask;
+            }
+            _page = page;
+            _presentation = presentation;
+            Services.AppLog.Info("second", $"Lower screen on display {display.DisplayId} ({display.Name}, flags 0x{(int)display.Flags:X})");
         }
         return ValueTask.CompletedTask;
     }
@@ -364,18 +383,42 @@ public sealed class AndroidSecondaryDisplayHost(IServiceProvider services) : ISe
         }
     }
 
+    // Dual-screen handhelds whose built-in lower panel is not tagged as a presentation
+    // display (the AYN Thor's is not): only on these may an untagged display be used.
+    private static readonly string[] DualScreenMakers = ["AYN", "AYANEO", "Retroid", "Anbernic"];
+
+    // Names Android gives displays that are not a second panel of this device: casting,
+    // screen recording, desktop modes (Motorola Ready For, Samsung DeX), developer overlays.
+    private static readonly string[] VirtualHints = ["virtual", "overlay", "cast", "wifi", "wireless", "ready for", "dex", "mirror", "record"];
+
+    /// <summary>
+    /// The display for the lower screen, or null. Never the display PKForge itself is on,
+    /// never an invalid, off or private one, and never one whose name says it is virtual:
+    /// phones expose casting and desktop-mode displays that a Presentation cannot live on.
+    /// </summary>
     private static Display? ResolveDisplay()
     {
         var manager = (DisplayManager?)Platform.AppContext.GetSystemService(Android.Content.Context.DisplayService);
         if (manager is null) return null;
+        // Before Android 11 an activity cannot say its display; it is then the default one.
+        var own = OperatingSystem.IsAndroidVersionAtLeast(30)
+            ? Platform.CurrentActivity?.Display?.DisplayId ?? Display.DefaultDisplay
+            : Display.DefaultDisplay;
 
-        var presentation = manager.GetDisplays(DisplayManager.DisplayCategoryPresentation);
-        if (presentation is { Length: > 0 })
-            return presentation[0];
+        bool Usable(Display d) =>
+            d.DisplayId != own && d.IsValid && d.State != DisplayState.Off
+            && (d.Flags & DisplayFlags.Private) == 0
+            && !VirtualHints.Any(hint => (d.Name ?? "").Contains(hint, StringComparison.OrdinalIgnoreCase));
+
+        var presentation = manager.GetDisplays(DisplayManager.DisplayCategoryPresentation)?.FirstOrDefault(Usable);
+        if (presentation is not null)
+            return presentation;
 
         // Thor fallback: its built-in bottom screen is not presentation-tagged.
-        var all = manager.GetDisplays();
-        return all is { Length: > 1 } ? all[1] : null;
+        var maker = Android.OS.Build.Manufacturer ?? "";
+        if (!DualScreenMakers.Any(m => maker.Contains(m, StringComparison.OrdinalIgnoreCase)))
+            return null;
+        return manager.GetDisplays()?.FirstOrDefault(Usable);
     }
 
     private sealed class PagePresentation(Activity activity, Display display, ContentPage page, IServiceProvider services)
