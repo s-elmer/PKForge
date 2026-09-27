@@ -136,6 +136,10 @@ public sealed class LuminescentPlatinumTests
         Assert.Equal(["Normal", "Mega", "Gigantamax", "Stitched"], session.GetFormChoices((int)Species.Gengar));
         Assert.Equal(["Normal", "Mega X", "Mega Y", "Armor MK2", "Armor MK1"], session.GetFormChoices((int)Species.Mewtwo));
         Assert.Equal(["Normal", "Crystal"], session.GetFormChoices((int)Species.Onix));
+        // Pikachu has 18 forms in Lumi: the one PKHeX cannot name still gets a row.
+        var pikachu = session.GetFormChoices((int)Species.Pikachu);
+        Assert.Equal(18, pikachu.Count);
+        Assert.Equal("Form 17", pikachu[^1]);
         // Every Lumi form list matches the form count its personal table declares.
         foreach (var species in new[] { Species.Venusaur, Species.Charizard, Species.Blastoise, Species.Gengar, Species.Onix, Species.Eevee, Species.Mewtwo })
             Assert.Equal(PersonalTable.BDSPLUMI[(ushort)species].FormCount, session.GetFormChoices((int)species).Count);

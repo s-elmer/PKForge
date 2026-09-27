@@ -37,3 +37,8 @@ Pokémon XD: Gale of Darkness bundled game artwork from SteamGridDB:
 - [English logo 7926](https://www.steamgriddb.com/logo/7926) uploaded by RealSayakaMaizono.
 Pokémon game artwork and logos © Nintendo / The Pokémon Company / Genius Sonority;
 these game assets are separate from the CC-BY menu illustrations above.
+
+Luminescent Platinum custom form icons (`lumi/`, the Clone, Stitched, Crystal and
+Armor forms, normal, female and shiny) by Team Lumi, provided by
+[BlupBlurp](https://github.com/BlupBlurp) for use in PKForge. Pokémon © Nintendo /
+Game Freak / The Pokémon Company.

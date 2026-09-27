@@ -2076,9 +2076,8 @@ public sealed class SaveEngineSession : ISaveEngineSession
     {
         ThrowIfDisposed();
         var strings = GameInfo.Strings; // app language, cached by the engine
-        if (Luminescent.LumiData.IsLumi(_save) && Luminescent.LumiData.FormNames((ushort)species, strings.Types, strings.forms) is { } lumi)
-            return lumi;
-        return FormConverter.GetFormList((ushort)species, strings.Types, strings.forms, _save.Context);
+        var list = FormConverter.GetFormList((ushort)species, strings.Types, strings.forms, _save.Context);
+        return Luminescent.LumiData.IsLumi(_save) ? Luminescent.LumiData.FormList((ushort)species, list, strings.Types, strings.forms) : list;
     }
 
     public IReadOnlyList<int> GetAbilityChoices(int species, int form)

@@ -17,6 +17,19 @@ internal static class LumiData
     /// Lumi's form names for the species it extends, in form index order; null for every
     /// other species, which keeps PKHeX's names.
     /// </summary>
+    /// <summary>
+    /// The form list a Lumi species shows: Lumi's names where known, else PKHeX's, padded
+    /// with "Form N" up to the forms Lumi's personal table declares (Pikachu has 18 there),
+    /// so no Lumi form is ever blank or out of reach.
+    /// </summary>
+    public static IReadOnlyList<string> FormList(ushort species, IReadOnlyList<string> known, IReadOnlyList<string> types, IReadOnlyList<string> forms)
+    {
+        var names = FormNames(species, types, forms) ?? known;
+        var count = species <= PersonalTable.BDSPLUMI.MaxSpeciesID ? PersonalTable.BDSPLUMI[species].FormCount : names.Count;
+        if (names.Count >= count) return names;
+        return [.. names, .. Enumerable.Range(names.Count, count - names.Count).Select(form => $"Form {form}")];
+    }
+
     public static string[]? FormNames(ushort species, IReadOnlyList<string> types, IReadOnlyList<string> forms)
     {
         string Normal() => types[0];
