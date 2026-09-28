@@ -76,6 +76,28 @@ public static class CapsuleSkin
         ButtonHandler.Mapper.AppendToMapping(nameof(IView.IsEnabled), (h, v) => Apply(h, v));
         ButtonHandler.Mapper.AppendToMapping(nameof(ITextStyle.TextColor), (h, v) => Apply(h, v));
         ButtonHandler.Mapper.AppendToMapping(nameof(IPadding.Padding), (h, v) => ApplyPadding(h, v));
+        // Same defaults as ButtonHandler.CreatePlatformView, on a button that tolerates tight measures.
+        ButtonHandler.PlatformViewFactory = h => new IconSafeButton(h.Context)
+        {
+            IconGravity = MaterialButton.IconGravityTextStart,
+            IconTintMode = Android.Graphics.PorterDuff.Mode.Add,
+            IconTint = Colors.Transparent.ToDefaultColorStateList(),
+            SoundEffectsEnabled = false,
+        };
+    }
+
+    /// <summary>
+    /// MauiMaterialButton shrinks a plain-drawable icon to the measure spec minus padding without
+    /// flooring at zero; a probe narrower and shorter than the padding (seen on Motorola scaling)
+    /// makes MaterialButton throw "iconSize cannot be less than 0". Clamp it instead.
+    /// </summary>
+    private sealed class IconSafeButton(Android.Content.Context context) : MauiMaterialButton(context)
+    {
+        public override int IconSize
+        {
+            get => base.IconSize;
+            set => base.IconSize = Math.Max(0, value);
+        }
     }
 
     private static float Dp(Android.Views.View view, double dp) => (float)(dp * (view.Resources?.DisplayMetrics?.Density ?? 2f));
