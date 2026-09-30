@@ -54,7 +54,6 @@ public sealed class MonSummaryView : ContentView
     private static readonly SKColor SpeciesEdge = new(0x5A, 0xD2, 0xF0);
     private static readonly SKColor SpeciesInk = new(0xC8, 0xF0, 0xFF);
     private static readonly SKColor NameFrame = new(0x1D, 0x22, 0x44);
-    private static readonly SKColor TextOutline = new(0x28, 0x22, 0x34);
     private static readonly SKColor Raised = new(0xFA, 0x8C, 0x96);
     private static readonly SKColor Lowered = new(0x82, 0xB4, 0xFA);
 
@@ -392,8 +391,11 @@ public sealed class MonSummaryView : ContentView
             Fill(c, banner, StoragePaint.BannerTop, StoragePaint.BannerBottom);
             Outline(c, banner, Pksm.Ink, 4);
         }
+        // The ball it was caught in sits at the start of the banner, as in the games.
         var name = s.IsEgg ? "Egg" : s.DisplayName;
-        SummaryInk.Draw(c, SummaryInk.Fit(name, 44, 520), 270, SummaryInk.Center(77, 44), 44, Pksm.Ink, align: SKTextAlign.Center);
+        var hasBall = !s.IsEgg && DrawBall(c, s.Ball, new SKRect(28, 46, 88, 106));
+        var nameLeft = hasBall ? 100f : 0f;
+        SummaryInk.Draw(c, SummaryInk.Fit(name, 44, 540 - nameLeft - 20), (nameLeft + 540) / 2, SummaryInk.Center(77, 44), 44, Pksm.Ink, align: SKTextAlign.Center);
         if (!string.IsNullOrEmpty(_caption))
             SummaryInk.Draw(c, SummaryInk.Fit(_caption, 24, 560), 24, SummaryInk.Center(146, 24), 24, SubInk);
 
@@ -403,6 +405,20 @@ public sealed class MonSummaryView : ContentView
         if (_pageKind == SummaryPage.Stats && s.Stats.Count == 6) PaintRadar(c, 300, middle, s);
         else PaintPokemon(c, 300, middle, s);
         PaintSpeciesCard(c, cardTop, s);
+    }
+
+    /// <summary>Draws the ball icon (20 px pixel art) into a square; false while it loads or when there is none.</summary>
+    private bool DrawBall(SKCanvas c, int ball, SKRect square)
+    {
+        var bitmap = _sprites.GetBall(ball);
+        if (bitmap is null)
+        {
+            _sprites.WarmBall(ball, () => MainThread.BeginInvokeOnMainThread(() => { _left.InvalidateSurface(); _page.InvalidateSurface(); }));
+            return false;
+        }
+        using var image = SKImage.FromBitmap(bitmap);
+        c.DrawImage(image, square, new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None));
+        return true;
     }
 
     /// <summary>
@@ -542,7 +558,7 @@ public sealed class MonSummaryView : ContentView
         var x = 307 - (types.Count * plate + Math.Max(0, types.Count - 1) * gap) / 2;
         foreach (var type in types)
         {
-            TypePlate(c, new SKRect(x, top + 106, x + plate, top + 166), type, 38);
+            TypePlates.Paint(c, new SKRect(x, top + 106, x + plate, top + 166), type);
             x += plate + gap;
         }
     }
@@ -703,7 +719,7 @@ public sealed class MonSummaryView : ContentView
 
     // ── Info ─────────────────────────────────────────────────────────────────
 
-    private static List<Block> InfoPage(MonSummary s)
+    private List<Block> InfoPage(MonSummary s)
     {
         var blocks = new List<Block>();
         if (s.IsEgg)
@@ -740,7 +756,12 @@ public sealed class MonSummaryView : ContentView
 
         blocks.Add(Divider("Items & care"));
         blocks.Add(Row("Held item", s.HeldItemName ?? "None", s.HeldItemEffect));
-        blocks.Add(Row("Ball", s.BallName));
+        blocks.Add(Row("Ball", s.BallName, art: (canvas, x, cy) =>
+        {
+            var drawn = DrawBall(canvas, s.Ball, new SKRect(x, cy - 20, x + 40, cy + 20));
+            var textX = drawn ? x + 54 : x;
+            SummaryInk.Draw(canvas, s.BallName, textX, SummaryInk.Center(cy, 38), 38, ValueInk);
+        }));
         if (!s.IsEgg) blocks.Add(Row("Friendship", $"{s.Friendship} / 255", FriendshipLine(s.Friendship)));
         if (s.Pokerus is { } rus)
             blocks.Add(rus.Status switch
@@ -820,9 +841,9 @@ public sealed class MonSummaryView : ContentView
 
         var potential = new List<Block>();
         if (s.HiddenPowerType is { } hp)
-            potential.Add(Row("Hidden Power", "", art: (canvas, x, cy) => TypePlate(canvas, new SKRect(x, cy - 24, x + 150, cy + 24), hp, 30)));
+            potential.Add(Row("Hidden Power", "", art: (canvas, x, cy) => TypePlates.Paint(canvas, new SKRect(x, cy - 24, x + 150, cy + 24), hp)));
         if (s.TeraType is { } tera && TypeFacts.IsValid(tera))
-            potential.Add(Row("Tera Type", "", art: (canvas, x, cy) => TypePlate(canvas, new SKRect(x, cy - 24, x + 150, cy + 24), tera, 30)));
+            potential.Add(Row("Tera Type", "", art: (canvas, x, cy) => TypePlates.Paint(canvas, new SKRect(x, cy - 24, x + 150, cy + 24), tera)));
         else if (s.TeraTypeName is not null) potential.Add(Row("Tera Type", s.TeraTypeName));
         if (s.Characteristic is not null) potential.Add(Row("Trait", s.Characteristic));
         if (potential.Count > 0)
@@ -866,7 +887,7 @@ public sealed class MonSummaryView : ContentView
         var effect = string.IsNullOrWhiteSpace(move.Effect) ? [] : SummaryInk.Wrap(move.Effect, 28, width);
         var height = 150 + 34 * (verdictLines.Count + effect.Count);
         if (c is null) return height;
-        TypePlate(c, new SKRect(36, y + 18, 186, y + 66), move.Type, 30);
+        TypePlates.Paint(c, new SKRect(36, y + 18, 186, y + 66), move.Type);
         CategoryPlate(c, new SKRect(198, y + 18, 298, y + 66), move.Category);
         SummaryInk.Draw(c, SummaryInk.Fit(move.Name, 40, right - 316 - 8), 316, SummaryInk.Center(y + 42, 40), 40, Pksm.Ink);
         var low = move.MaxPP > 0 && move.PP * 4 <= move.MaxPP;
@@ -989,14 +1010,6 @@ public sealed class MonSummaryView : ContentView
 
     // ── Plates and shapes ────────────────────────────────────────────────────
 
-    /// <summary>A type plate: a darker rim, the type colour inside, the name in outlined capitals.</summary>
-    private static void TypePlate(SKCanvas c, SKRect r, int type, float size)
-    {
-        if (!TypeFacts.IsValid(type)) return;
-        var color = InfoKit.TypeColor(type).ToSKColor();
-        Plate(c, r, SummaryChrome.Lighter(color, 0.12f), SummaryChrome.Darker(color, 0.35f), TypeFacts.Name(type).ToUpperInvariant(), size);
-    }
-
     // The category plates share one blue, the app's own, so they never read as a type.
     private static readonly SKColor CategoryLight = new(0x4C, 0x7C, 0xC4);
     private static readonly SKColor CategoryDark = new(0x1E, 0x40, 0x7C);
@@ -1009,20 +1022,7 @@ public sealed class MonSummaryView : ContentView
             MoveCategory.Special => "SPEC",
             _ => "STAT",
         };
-        Plate(c, r, CategoryLight, CategoryDark, label, 26);
-    }
-
-    private static void Plate(SKCanvas c, SKRect r, SKColor light, SKColor dark, string label, float size)
-    {
-        using (var rim = new SKPaint { Color = dark, IsAntialias = true }) c.DrawRoundRect(r, 3, 3, rim);
-        var inset = r.Height > 52 ? 6 : 5;
-        using (var fill = new SKPaint { Color = light, IsAntialias = true }) c.DrawRoundRect(SKRect.Inflate(r, -inset, -inset), 2, 2, fill);
-        var text = SummaryInk.Fit(label, size, r.Width - 12);
-        var baseline = SummaryInk.Center(r.MidY, size);
-        var outline = size * 0.08f;
-        foreach (var (dx, dy) in new[] { (-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, 1), (-1, 1), (1, -1) })
-            SummaryInk.Draw(c, text, r.MidX + dx * outline, baseline + dy * outline, size, TextOutline, align: SKTextAlign.Center);
-        SummaryInk.Draw(c, text, r.MidX, baseline, size, Pksm.Ink, align: SKTextAlign.Center);
+        TypePlates.Paint(c, r, CategoryLight, CategoryDark, label);
     }
 
     /// <summary>A tab: rounded on the left, its right edge slanting out toward the bottom.</summary>

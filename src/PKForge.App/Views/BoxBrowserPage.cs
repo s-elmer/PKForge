@@ -4317,7 +4317,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         var statLines = Enumerable.Range(0, 6)
             .Select(i => FocusBorder(StatLine(i, i % 2 == 0, EditTraining), StatNames[i], () => EditTraining(StatNames[i])))
             .ToArray();
-        var ball = FocusBorder(NamedPicker("BALL", nameof(BoxBrowserViewModel.EditBall), data.BallNames, BallItems, shaded: true), "BALL", async () => await OpenNamedPickerAsync("BALL", nameof(BoxBrowserViewModel.EditBall), BallItems));
+        var ball = FocusBorder(NamedPicker("BALL", nameof(BoxBrowserViewModel.EditBall), data.BallNames, BallItems, shaded: true, leading: BallIcon()), "BALL", async () => await OpenNamedPickerAsync("BALL", nameof(BoxBrowserViewModel.EditBall), BallItems));
         var ot = FocusBorder(FieldRow("OT", nameof(BoxBrowserViewModel.EditOt), shaded: false), "OT", () =>
         {
             if (otRow is not null) FocusEntry(otRow);
@@ -5056,11 +5056,12 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
 
     /// <summary>A tappable name field: caption + current value as a name, opens the searchable picker (or the Pokédex).</summary>
     private View NamedPicker(string caption, string vmProperty, IReadOnlyList<string> names, Func<List<PickItem>>? itemsFactory, bool openPokedex = false, bool shaded = false,
-        Func<Task>? open = null)
+        Func<Task>? open = null, View? leading = null)
     {
         var value = EditorValueLabel();
         value.SetBinding(Label.TextProperty, new Binding(vmProperty, converter: new IdNameConverter(names)));
-        var chip = RowChrome(caption, value, shaded, EditorChevron());
+        View content = leading is null ? value : new HorizontalStackLayout { Spacing = Design(14), Children = { leading, value } };
+        var chip = RowChrome(caption, content, shaded, EditorChevron());
 
         var tap = new TapGestureRecognizer();
         tap.Tapped += async (_, _) =>

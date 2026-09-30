@@ -236,7 +236,6 @@ public sealed partial class BoxBrowserPage
     private Border MoveRow(int index, string vmProperty, IGameDataService data, bool dark, Func<Task> open)
     {
         var badge = InfoKit.TypeBadge(null, Design(128));
-        badge.HeightRequest = Design(36);
         var name = EditorValueLabel();
         var pp = new Label
         {
@@ -262,12 +261,6 @@ public sealed partial class BoxBrowserPage
             name.Text = id == 0 ? "—" : (uint)id < (uint)data.MoveNames.Count ? data.MoveNames[id] : $"#{id}";
             var facts = id == 0 || session is null ? null : InfoPickers.Info?.GetMove(session, id);
             InfoKit.SetType(badge, facts?.Type);
-            // The mockup's plates: title case, a size under the row text.
-            if (facts is not null && badge.Content is Label plate)
-            {
-                plate.Text = TypeFacts.Name(facts.Type);
-                plate.FontSize = Design(24);
-            }
             pp.Text = "";
             // An empty slot has no moves to read (the edit fields still hold the last Pokémon's).
             if (facts is null || session is null || _viewModel.SelectedSlot < 0 || _viewModel.Selected is not { IsEmpty: false }) return;
@@ -435,6 +428,35 @@ public sealed partial class BoxBrowserPage
             if (focused && label.TextColor == EditorLabel) label.TextColor = FocusedCaption;
             else if (!focused && label.TextColor == FocusedCaption) label.TextColor = EditorLabel;
         }
+    }
+
+    /// <summary>The ball icon on the Ball row, pixel-sharp, following the pending ball.</summary>
+    private SKCanvasView BallIcon()
+    {
+        var view = new SKCanvasView
+        {
+            WidthRequest = Design(40), HeightRequest = Design(40), InputTransparent = true, VerticalOptions = LayoutOptions.Center,
+        };
+        view.PaintSurface += (_, args) =>
+        {
+            var c = args.Surface.Canvas;
+            c.Clear(SKColors.Transparent);
+            if (ParseInt(_viewModel.EditBall) is not { } ball || ball <= 0) return;
+            var bitmap = _sprites.GetBall(ball);
+            if (bitmap is null)
+            {
+                _sprites.WarmBall(ball, () => MainThread.BeginInvokeOnMainThread(view.InvalidateSurface));
+                return;
+            }
+            using var image = SKImage.FromBitmap(bitmap);
+            c.DrawImage(image, new SKRect(0, 0, args.Info.Width, args.Info.Height), new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None));
+        };
+        _viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is nameof(BoxBrowserViewModel.EditBall) or nameof(BoxBrowserViewModel.Selected))
+                view.InvalidateSurface();
+        };
+        return view;
     }
 
     /// <summary>A tool button: flat navy-blue plate, pale edge, pixel label, no icon.</summary>

@@ -366,15 +366,10 @@ public sealed class PokedexPicker : IPadHandler
         for (var type = 0; type < TypeNames.Length; type++)
         {
             var captured = type;
-            var chip = new Border
-            {
-                BackgroundColor = TypePalette.ForType(type),
-                StrokeThickness = 0,
-                Opacity = 0.55,
-                StrokeShape = new RoundRectangle { CornerRadius = 6 },
-                Padding = new Thickness(8, 3),
-                Content = new Label { Text = TypeNames[type], TextColor = TypePalette.ForegroundForType(type), FontSize = UiTokens.TextSmall, FontAttributes = FontAttributes.Bold },
-            };
+            // The type plate, dimmed until the filter is on.
+            var chip = InfoKit.TypeBadge(type, 62);
+            chip.Opacity = 0.55;
+            chip.InputTransparent = false;
             var tap = new TapGestureRecognizer();
             tap.Tapped += (_, _) => ToggleType(captured);
             chip.GestureRecognizers.Add(tap);

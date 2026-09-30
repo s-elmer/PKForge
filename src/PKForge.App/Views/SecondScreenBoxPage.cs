@@ -21,12 +21,6 @@ namespace PKForge.App.Views;
 /// </summary>
 public sealed class SecondScreenBoxPage : ContentPage
 {
-    /// <summary>English type names by PKHeX type id (stable across generations).</summary>
-    private static readonly string[] TypeNames =
-    [
-        "Normal", "Fighting", "Flying", "Poison", "Ground", "Rock", "Bug", "Ghost", "Steel",
-        "Fire", "Water", "Grass", "Electric", "Psychic", "Ice", "Dragon", "Dark", "Fairy",
-    ];
 
     private readonly BoxBrowserViewModel _viewModel;
     private readonly ISpriteService _sprites;
@@ -500,15 +494,7 @@ public sealed class SecondScreenBoxPage : ContentPage
         {
             foreach (var type in session.GetSpeciesTypes(species))
             {
-                var typeName = (uint)type < (uint)TypeNames.Length ? TypeNames[type] : $"?{type}";
-                _dexTypes.Children.Add(new Border
-                {
-                    BackgroundColor = TypePalette.ForType(type),
-                    StrokeThickness = 0,
-                    StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 5 },
-                    Padding = new Thickness(9, 2),
-                    Content = new Label { Text = typeName, TextColor = Colors.White, FontSize = 10, FontAttributes = FontAttributes.Bold },
-                });
+                _dexTypes.Children.Add(InfoKit.TypeBadge(type, 62));
             }
 
             var stats = session.GetBaseStats(species);
