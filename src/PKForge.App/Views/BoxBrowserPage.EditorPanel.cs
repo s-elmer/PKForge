@@ -430,6 +430,59 @@ public sealed partial class BoxBrowserPage
         }
     }
 
+    // Decoded box wallpapers by asset name (a few dozen at most), with their average colour.
+    private static readonly Dictionary<string, (SKImage Art, SKColor Average)?> Wallpapers = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> WallpapersLoading = new(StringComparer.Ordinal);
+    private (Domain.ISaveEngineSession Session, int Box, long Generation, string Asset)? _wallpaperKey;
+
+    /// <summary>
+    /// The current box's wallpaper: the one the game stores for it, or for games that store
+    /// none (Gen 1-2, ROM hacks) the Emerald set in turn, so every box still has its own.
+    /// Null while it loads; the canvas repaints when it arrives.
+    /// </summary>
+    private (SKImage Art, SKColor Average)? BoxWallpaper()
+    {
+        var box = _viewModel.BoxIndex;
+        if (box < 0 || _sessionsFor() is not { } session) return null;
+        string asset;
+        if (_wallpaperKey is { } key && key.Session == session && key.Box == box && key.Generation == _viewModel.MutationGeneration)
+            asset = key.Asset;
+        else
+        {
+            string? stored = null;
+            try
+            {
+                if (Engine.BoxLayoutService.SupportsWallpapers(session) && box < _viewModel.BoxCount)
+                    stored = Engine.BoxLayoutService.GetBox(session, box).WallpaperAsset;
+            }
+            catch (Exception error) when (error is ArgumentException or InvalidOperationException) { }
+            asset = stored ?? $"box_wp{box % 16 + 1:00}e";
+            _wallpaperKey = (session, box, _viewModel.MutationGeneration, asset);
+        }
+        if (Wallpapers.TryGetValue(asset, out var art)) return art;
+        if (!WallpapersLoading.Add(asset)) return null;
+        _ = LoadWallpaperAsync(asset);
+        return null;
+    }
+
+    private async Task LoadWallpaperAsync(string asset)
+    {
+        (SKImage, SKColor)? art = null;
+        try
+        {
+            art = await Task.Run(async () =>
+            {
+                await using var stream = await FileSystem.OpenAppPackageFileAsync($"wallpapers/{asset}.png");
+                using var bitmap = SKBitmap.Decode(stream);
+                return bitmap is null ? ((SKImage, SKColor)?)null : (SKImage.FromBitmap(bitmap), StoragePaint.AverageColor(bitmap));
+            });
+        }
+        catch (Exception error) when (error is IOException or FileNotFoundException) { }
+        Wallpapers[asset] = art;
+        WallpapersLoading.Remove(asset);
+        _canvas.InvalidateSurface();
+    }
+
     /// <summary>The ball icon on the Ball row, pixel-sharp, following the pending ball.</summary>
     private SKCanvasView BallIcon()
     {

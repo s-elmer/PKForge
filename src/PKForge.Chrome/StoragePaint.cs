@@ -43,6 +43,90 @@ public static class StoragePaint
         c.DrawRoundRect(SKRect.Inflate(r, -edge / 2, -edge / 2), radius, radius, stroke);
     }
 
+    /// <summary>How a box's own wallpaper shows in the well (a player setting).</summary>
+    public enum WallpaperStyle { Veiled, Duotone, Horizon }
+
+    /// <summary>
+    /// Draws a box's game wallpaper inside the well, covering it (aspect kept, overflow cropped)
+    /// and toned down so the Pokémon stay the subject. <paramref name="average"/> is the art's
+    /// average colour, which the duotone style maps the art onto.
+    /// </summary>
+    public static void Wallpaper(SKCanvas c, SKRect well, SKImage art, SKColor average, WallpaperStyle style, float unit)
+    {
+        // The small Gen 3-4 wallpapers carry a 4 px frame of their own: leave it out.
+        var frame = art.Width < 200 ? 4 : 0;
+        var source = SKRect.Create(frame, frame, art.Width - frame * 2, art.Height - frame * 2);
+        var cover = Math.Max(well.Width / source.Width, well.Height / source.Height);
+        var w = well.Width / cover;
+        var h = well.Height / cover;
+        source = SKRect.Create(source.MidX - w / 2, source.MidY - h / 2, w, h);
+        // Pixel wallpapers stay crisp; the large painted ones are smoothed.
+        var sampling = art.Width < 200
+            ? new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None)
+            : new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear);
+
+        c.Save();
+        var edge = 3f * unit;
+        c.ClipRoundRect(new SKRoundRect(SKRect.Inflate(well, -edge, -edge), 25f * unit), antialias: true);
+        switch (style)
+        {
+            case WallpaperStyle.Duotone:
+            {
+                // The art's light and shade, from the well's navy up to its own colour.
+                var light = PksmPaint.Mix(average, Well, 0.35f);
+                float Row(byte from, byte to, float weight) => weight * (to - from) / 255f;
+                float[] matrix =
+                [
+                    Row(Well.Red, light.Red, 0.299f), Row(Well.Red, light.Red, 0.587f), Row(Well.Red, light.Red, 0.114f), 0, Well.Red / 255f,
+                    Row(Well.Green, light.Green, 0.299f), Row(Well.Green, light.Green, 0.587f), Row(Well.Green, light.Green, 0.114f), 0, Well.Green / 255f,
+                    Row(Well.Blue, light.Blue, 0.299f), Row(Well.Blue, light.Blue, 0.587f), Row(Well.Blue, light.Blue, 0.114f), 0, Well.Blue / 255f,
+                    0, 0, 0, 1, 0,
+                ];
+                using var tint = new SKPaint { ColorFilter = SKColorFilter.CreateColorMatrix(matrix) };
+                c.DrawImage(art, source, well, sampling, tint);
+                break;
+            }
+            case WallpaperStyle.Horizon:
+            {
+                // The art rises from the bottom and fades into the navy toward the top.
+                c.DrawImage(art, source, well, sampling, null);
+                using var fade = new SKPaint
+                {
+                    Shader = SKShader.CreateLinearGradient(new SKPoint(0, well.Top), new SKPoint(0, well.Bottom),
+                        [Well, Well.WithAlpha(235), Well.WithAlpha(120)], [0f, 0.55f, 1f], SKShaderTileMode.Clamp),
+                };
+                c.DrawRect(well, fade);
+                break;
+            }
+            default:
+            {
+                // The art as it is, under a navy veil.
+                c.DrawImage(art, source, well, sampling, null);
+                using var veil = new SKPaint { Color = Well.WithAlpha(165) };
+                c.DrawRect(well, veil);
+                break;
+            }
+        }
+        c.Restore();
+        // The edge goes back on top of the art.
+        using var stroke = Stroke(WellEdge, edge);
+        c.DrawRoundRect(SKRect.Inflate(well, -edge / 2, -edge / 2), 28f * unit, 28f * unit, stroke);
+    }
+
+    /// <summary>The average colour of an image, sampled on a coarse grid.</summary>
+    public static SKColor AverageColor(SKBitmap bitmap)
+    {
+        long red = 0, green = 0, blue = 0, count = 0;
+        var step = Math.Max(1, Math.Min(bitmap.Width, bitmap.Height) / 48);
+        for (var y = 0; y < bitmap.Height; y += step)
+            for (var x = 0; x < bitmap.Width; x += step)
+            {
+                var p = bitmap.GetPixel(x, y);
+                red += p.Red; green += p.Green; blue += p.Blue; count++;
+            }
+        return count == 0 ? Well : new SKColor((byte)(red / count), (byte)(green / count), (byte)(blue / count));
+    }
+
     /// <summary>
     /// The box header: a rounded frame holding the slanted banner with the box name, and a
     /// double chevron at each end, dimmed when there is no box that way.

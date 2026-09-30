@@ -5182,7 +5182,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             return;
         }
         StopPartyPulse();
-        BoxGridRenderer.Paint(args.Surface.Canvas, args.Info, _viewModel, _sprites, _theme, _frame.Request, _lockedSlots, _hand);
+        BoxGridRenderer.Paint(args.Surface.Canvas, args.Info, _viewModel, _sprites, _theme, _frame.Request, _lockedSlots, _hand, BoxWallpaper());
     }
 
     /// <summary>Locked-mon badges for the current box; refreshed on box/mutation changes, never per frame.</summary>

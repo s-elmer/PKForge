@@ -112,12 +112,16 @@ public static class BoxGridRenderer
         ThemeService theme,
         Action invalidate,
         IReadOnlySet<int>? lockedSlots = null,
-        CarryHand? hand = null)
+        CarryHand? hand = null,
+        (SKImage Art, SKColor Average)? wallpaper = null)
     {
         var layout = StorageMetrics(new SKSize(info.Width, info.Height));
         var unit = layout.Unit;
         canvas.Clear(SKColors.Transparent);
-        StoragePaint.WellPanel(canvas, new SKRect(0, 0, info.Width, info.Height), unit);
+        var well = new SKRect(0, 0, info.Width, info.Height);
+        StoragePaint.WellPanel(canvas, well, unit);
+        // The box's own wallpaper from the game, toned down in the player's chosen style.
+        if (wallpaper is { } art) StoragePaint.Wallpaper(canvas, well, art.Art, art.Average, BoxBackground.Style, unit);
         // BDSP and Luminescent Platinum boxes wear the BDSP-style icons once downloaded.
         var bdspStyle = Domain.BdspIcons.AppliesTo(viewModel.Save?.Format);
         var marking = viewModel.SelectMode;

@@ -850,6 +850,8 @@ public sealed class HomePage : ContentPage, IPadHandler
             new PadOption("Share logs", IconPath: "export", Detail: "Crash reports and recent activity, to send us when something goes wrong."),
             new PadOption(SecondScreenMode.UserOff ? "Second screen: OFF" : "Second screen: ON", IconPath: "compact",
                 Detail: "OFF keeps PKForge on one screen, so the other stays free (an emulator, say)."),
+            new PadOption($"Box background: {BoxBackground.Name(BoxBackground.Style)}", IconPath: "box",
+                Detail: "How each PC box shows the wallpaper the game gives it."),
             new PadOption(Services.HaXMode.IsOn ? "HaX mode: ON" : "HaX mode: OFF", IconPath: "hax"),
             new PadOption(Services.HardcoreMode.IsOn ? "Hardcore mode: ON" : "Hardcore mode: OFF", IconPath: "hardcore"));
         switch (choice)
@@ -876,6 +878,22 @@ public sealed class HomePage : ContentPage, IPadHandler
             case "Share logs":
                 await ShareLogsAsync();
                 break;
+            case var background when background?.StartsWith("Box background:", StringComparison.Ordinal) == true:
+            {
+                var styles = Enum.GetValues<PKForge.Chrome.StoragePaint.WallpaperStyle>();
+                var picked = await PadMenu.ShowAsync(_hostGrid, "Box background", null,
+                    [
+                        new PadOption(BoxBackground.Name(PKForge.Chrome.StoragePaint.WallpaperStyle.Veiled), Detail: "The game's wallpaper under a navy veil."),
+                        new PadOption(BoxBackground.Name(PKForge.Chrome.StoragePaint.WallpaperStyle.Duotone), Detail: "The wallpaper's pattern in two tones, navy to its own colour."),
+                        new PadOption(BoxBackground.Name(PKForge.Chrome.StoragePaint.WallpaperStyle.Horizon), Detail: "The wallpaper rises from the bottom and fades into the navy."),
+                    ]);
+                foreach (var style in styles.Where(style => BoxBackground.Name(style) == picked))
+                {
+                    BoxBackground.Set(style);
+                    _viewModel.Status = $"Box background: {BoxBackground.Name(style)}.";
+                }
+                break;
+            }
             case "Second screen: ON" or "Second screen: OFF":
             {
                 var turnOff = !SecondScreenMode.UserOff;
