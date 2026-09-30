@@ -31,7 +31,6 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
     private EditorFocusTarget[] EditorFocusTargets = [];
     private Grid _hostGrid = null!;
     private long _partyPulseStart = Environment.TickCount64;
-    private int _lastAimSlot = -1;
     private IDispatcherTimer? _partyPulseTimer;
     private IDispatcherTimer? _boxManagePulseTimer;
     private bool _boxManageMode;
@@ -302,7 +301,6 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
     private void EnterSelectMode()
     {
         if (_boxManageMode || _editorFocusMode || _viewModel.Save is null) return;
-        _lastAimSlot = -1;
         _selectHeld = false;
         _viewModel.EnterSelectMode();
         if (_viewModel.SelectedSlot < 0) _viewModel.SelectSlot(0);
@@ -3604,25 +3602,18 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         var slot = Math.Max(0, _viewModel.SelectedSlot);
         _viewModel.SelectSlot(slot);
 
-        if (_viewModel.CarrySource is not null)
+        if (_viewModel.CarrySource is { } source)
         {
-            if (_viewModel.BoxIndex == -1 && _viewModel.SelectedSlot != _viewModel.CarrySource.Value.Slot)
-            {
-                // Party swap: the first A aims (preview), the second A on the same slot confirms.
-                if (_lastAimSlot == _viewModel.SelectedSlot) { _lastAimSlot = -1; _ = DropAndRepaintAsync(); }
-                else { _lastAimSlot = _viewModel.SelectedSlot; _canvas.InvalidateSurface(); }
-            }
-            else
-            {
-                _lastAimSlot = -1;
-                _ = DropAndRepaintAsync();
-            }
+            // Party swap between two Pokémon: the cards trade places once the write lands.
+            var target = _viewModel.SelectedSlot;
+            var partySwap = _viewModel.BoxIndex == -1 && source.Box == -1 && target != source.Slot
+                && PartyHasMon(source.Slot) && PartyHasMon(target);
+            _ = DropAndRepaintAsync(partySwap ? (source.Slot, target) : null);
             return true;
         }
-        _lastAimSlot = -1;
 
-        // A is the hand everywhere, party included: grab, carry, place or swap
-        // (the party drop is the two-step aim). The mon's actions stay on Start.
+        // A is the hand everywhere, party included: grab, carry, place or swap.
+        // The mon's actions stay on Start.
 
         if (_viewModel.BeginCarry())
         {
@@ -3633,10 +3624,17 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         return true;
     }
 
-    private async Task DropAndRepaintAsync()
+    private async Task DropAndRepaintAsync((int From, int To)? partySwap = null)
     {
         await _viewModel.DropAsync();
+        if (partySwap is { } swap) PartyView.BeginSwap(swap.From, swap.To);
         _canvas.InvalidateSurface();
+    }
+
+    private bool PartyHasMon(int slot)
+    {
+        try { return _sessionsFor()?.ReadEntity(-1, slot) is { IsEmpty: false }; }
+        catch { return false; }
     }
 
     /// <summary>Start opens the menu for whatever the cursor is on: mon actions or the add sheet.</summary>
