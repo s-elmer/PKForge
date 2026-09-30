@@ -553,7 +553,7 @@ public sealed class MonSummaryView : ContentView
         return s.Legal switch
         {
             true => ("Legal", Pksm.Legal),
-            false => ("Not legal", Pksm.Illegal),
+            false => ("Illegal", Pksm.Illegal),
             _ => ("Not checked", ValueInk),
         };
     }
@@ -848,7 +848,7 @@ public sealed class MonSummaryView : ContentView
             blocks.Add(Divider("Relearnable"));
             blocks.Add(Text(string.Join("\u00A0· ", s.RelearnMoves)));
             foreach (var bad in s.MoveVerdicts?.Relearn.Where(v => !v.Valid) ?? [])
-                blocks.Add(Text($"Not legal · {bad.Reason}", Pksm.Illegal));
+                blocks.Add(Text($"Illegal · {bad.Reason}", Pksm.Illegal));
         }
         if (s.Fields?.TechRecordCount is { } records)
         {
@@ -862,7 +862,7 @@ public sealed class MonSummaryView : ContentView
     private static Block MoveBlock(SummaryMove move, MoveVerdict? verdict) => (c, y, right) =>
     {
         var width = right - LabelX;
-        var verdictLines = verdict is null ? [] : SummaryInk.Wrap($"{(verdict.Valid ? "Legal" : "Not legal")} · {verdict.Reason}", 28, width);
+        var verdictLines = verdict is null ? [] : SummaryInk.Wrap($"{(verdict.Valid ? "Legal" : "Illegal")} · {verdict.Reason}", 28, width);
         var effect = string.IsNullOrWhiteSpace(move.Effect) ? [] : SummaryInk.Wrap(move.Effect, 28, width);
         var height = 150 + 34 * (verdictLines.Count + effect.Count);
         if (c is null) return height;
@@ -953,7 +953,7 @@ public sealed class MonSummaryView : ContentView
         {
             s.Legal == true
                 ? Hero("Legal", Pksm.Legal, "Every check passed.")
-                : Hero("Not legal", Pksm.Illegal, problems == 1 ? "1 problem found." : $"{problems} problems found."),
+                : Hero("Illegal", Pksm.Illegal, problems == 1 ? "1 problem found." : $"{problems} problems found."),
             Divider("Checks"),
         };
         if (checks is not null) blocks.AddRange(checks.Select(Check));
@@ -997,15 +997,19 @@ public sealed class MonSummaryView : ContentView
         Plate(c, r, SummaryChrome.Lighter(color, 0.12f), SummaryChrome.Darker(color, 0.35f), TypeFacts.Name(type).ToUpperInvariant(), size);
     }
 
+    // The category plates share one blue, the app's own, so they never read as a type.
+    private static readonly SKColor CategoryLight = new(0x4C, 0x7C, 0xC4);
+    private static readonly SKColor CategoryDark = new(0x1E, 0x40, 0x7C);
+
     private static void CategoryPlate(SKCanvas c, SKRect r, MoveCategory category)
     {
-        var (light, dark, label) = category switch
+        var label = category switch
         {
-            MoveCategory.Physical => (new SKColor(0xF0, 0x96, 0x6E), new SKColor(0xBE, 0x46, 0x28), "PHYS"),
-            MoveCategory.Special => (new SKColor(0x8C, 0xAA, 0xFA), new SKColor(0x3C, 0x5A, 0xC8), "SPEC"),
-            _ => (new SKColor(0xC8, 0xC8, 0xD7), new SKColor(0x78, 0x78, 0x96), "STAT"),
+            MoveCategory.Physical => "PHYS",
+            MoveCategory.Special => "SPEC",
+            _ => "STAT",
         };
-        Plate(c, r, light, dark, label, 26);
+        Plate(c, r, CategoryLight, CategoryDark, label, 26);
     }
 
     private static void Plate(SKCanvas c, SKRect r, SKColor light, SKColor dark, string label, float size)

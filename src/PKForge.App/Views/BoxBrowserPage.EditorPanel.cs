@@ -343,7 +343,7 @@ public sealed partial class BoxBrowserPage
     }
 
     /// <summary>
-    /// The legality status: Legal, Not legal (A opens the report), Checking, or Not checked
+    /// The legality status: Legal, Illegal (A opens the report), Checking, or Not checked
     /// for ROM hacks PKHeX cannot judge.
     /// </summary>
     private Border LegalityLine()
@@ -371,7 +371,7 @@ public sealed partial class BoxBrowserPage
             (value.Text, value.TextColor) = _viewModel.LegalityBadge switch
             {
                 "✓" => ("Legal", Pksm.Legal.ToMauiColor()),
-                "✗" => ("Not legal", Pksm.Illegal.ToMauiColor()),
+                "✗" => ("Illegal", Pksm.Illegal.ToMauiColor()),
                 _ when !supported => ("Not checked for this ROM hack", EditorValue),
                 _ => ("Checking…", EditorValue),
             };
