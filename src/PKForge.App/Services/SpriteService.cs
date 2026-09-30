@@ -69,6 +69,14 @@ public interface ISpriteService
     bool TryGetShowdownFront(SpriteLook look, Action onLoaded, out SKBitmap? sprite);
 
     /// <summary>
+    /// The PKHeX shiny sprite for a shiny look, trimmed to its visible pixels, only when real
+    /// shiny art exists (never the normal sprite in its place). Three states as
+    /// <see cref="TryGetBdspIcon"/>: false while it loads; true with the sprite; true with null
+    /// when there is no shiny art (draw the normal icon with the shiny star).
+    /// </summary>
+    bool TryGetShinySprite(SpriteLook look, Action onLoaded, out SKBitmap? sprite);
+
+    /// <summary>
     /// Showdown's box icon for a look, as the bundled icon sheet plus the icon's cell on it,
     /// with the same three states: false while the sheet loads; true with the sheet and cell;
     /// true with a null sheet when Showdown has no icon for this look.
@@ -428,22 +436,59 @@ public sealed class SpriteService : ISpriteService
     /// A copy cropped to the opaque pixels. Showdown's fronts sit in 96×96 frames with uneven
     /// padding; trimmed, every sprite can stand on the same ground line.
     /// </summary>
-    private static SKBitmap TrimToOpaque(SKBitmap source)
+    private static SKBitmap TrimToOpaque(SKBitmap source, byte threshold = 0)
     {
-        int left = source.Width, top = source.Height, right = -1, bottom = -1;
-        for (var y = 0; y < source.Height; y++)
-            for (var x = 0; x < source.Width; x++)
-            {
-                if (source.GetPixel(x, y).Alpha == 0) continue;
-                if (x < left) left = x;
-                if (x > right) right = x;
-                if (y < top) top = y;
-                if (y > bottom) bottom = y;
-            }
-        if (right < 0) return source.Copy();
-        var trimmed = new SKBitmap(right - left + 1, bottom - top + 1, source.ColorType, source.AlphaType);
-        source.ExtractSubset(trimmed, new SKRectI(left, top, right + 1, bottom + 1));
+        var bounds = PKForge.Chrome.StoragePaint.OpaqueBounds(source, new SKRectI(0, 0, source.Width, source.Height), threshold);
+        if (bounds.IsEmpty) return source.Copy();
+        using var trimmed = new SKBitmap();
+        source.ExtractSubset(trimmed, bounds);
         return trimmed.Copy();
+    }
+
+    public bool TryGetShinySprite(SpriteLook look, Action onLoaded, out SKBitmap? sprite)
+    {
+        sprite = null;
+        if (!look.Shiny) return true;
+        var key = "shiny-" + look.CacheKey;
+        lock (_gate)
+        {
+            if (_cache.TryGetValue(key, out sprite)) return true;
+            if (!_loading.Add(key)) return false;
+        }
+
+        Task.Run(async () =>
+        {
+            SKBitmap? bitmap = null;
+            await DecodeGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                // Only candidates that keep the shiny colours; the first bundled one wins.
+                foreach (var candidate in SpriteCatalog.BundledCandidates(look)
+                    .Where(c => c.Fidelity is SpriteFidelity.Exact or SpriteFidelity.GenderMissing))
+                {
+                    try
+                    {
+                        await using var stream = await FileSystem.OpenAppPackageFileAsync(candidate.Path).ConfigureAwait(false);
+                        using var decoded = SKBitmap.Decode(stream);
+                        // Faint edge pixels (alpha 16 and under) would skew the fit to the icon.
+                        if (decoded is not null) bitmap = TrimToOpaque(decoded, 16);
+                        break;
+                    }
+                    catch (FileNotFoundException) { }
+                }
+            }
+            catch (IOException) { }
+            finally { DecodeGate.Release(); }
+            lock (_gate)
+            {
+                _loading.Remove(key);
+                _cache[key] = bitmap;
+                _eviction.Enqueue(key);
+                TrimCache();
+            }
+            onLoaded();
+        });
+        return false;
     }
 
     // The icon sheet is shared by every box icon, so it is loaded once and never evicted.

@@ -67,6 +67,9 @@ public sealed class CarryHand
         _lift.Target = _holding ? 1 : 0;
     }
 
+    /// <summary>True while a Pokémon is in hand (not while a dropped one settles).</summary>
+    public bool Holding => _holding;
+
     /// <summary>True while the hand is drawn: holding, or still settling a dropped Pokémon.</summary>
     public bool Visible => _holding || _landingSlot >= 0;
 
@@ -78,7 +81,8 @@ public sealed class CarryHand
     /// needed (still moving, or the landing just ended), so the caller asks for one.
     /// </summary>
     /// <param name="drawHeld">Draws the Pokémon in hand; it must capture that Pokémon, since it also draws the landing after the drop.</param>
-    public bool Draw(SKCanvas canvas, float cell, Action<SKCanvas, SKRect> drawHeld)
+    /// <param name="drawPointer">Draws the pointer over the Pokémon in hand; the PKSM move pointer when null.</param>
+    public bool Draw(SKCanvas canvas, float cell, Action<SKCanvas, SKRect> drawHeld, Action<SKCanvas, SKRect>? drawPointer = null)
     {
         if (_holding) _lastHeld = drawHeld;
         if (!Visible) return false;
@@ -105,7 +109,9 @@ public sealed class CarryHand
         var held = new SKRect(slot.Left, slot.Top - raise, slot.Right, slot.Bottom - raise);
         (_holding ? drawHeld : _landing)?.Invoke(canvas, held);
 
-        if (_holding && AutopilotArt.Icon("ui:pointer_arrow.png") is { } pointer)
+        if (_holding && drawPointer is not null)
+            drawPointer(canvas, held);
+        else if (_holding && AutopilotArt.Icon("ui:pointer_arrow.png") is { } pointer)
         {
             // The PKSM move pointer (its tip is the image's top-left corner) holds the Pokémon
             // from below-right, as the storage cursor does.

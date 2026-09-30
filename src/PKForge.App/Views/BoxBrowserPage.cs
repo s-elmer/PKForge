@@ -86,9 +86,9 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         _canvas.PaintSurface += Paint;
         _canvas.Touch += Touch;
 
-        // The PKSM box-name bar rides above the grid: cream strip, yellow chevron caps.
-        // Touch mirrors the games: the chevron caps page the boxes, the name opens the box manager.
-        _boxBar = new SKCanvasView { HeightRequest = 30, Margin = new Thickness(2, 0, 2, 6) };
+        // The box header rides above the well: the slanted name banner between two chevrons.
+        // Touch mirrors the games: the chevrons page the boxes, the name opens the box manager.
+        _boxBar = new SKCanvasView { HeightRequest = 36, Margin = new Thickness(0, 0, 0, 14) };
         _boxBar.PaintSurface += PaintBoxBar;
         var boxBarTap = new TapGestureRecognizer();
         boxBarTap.Tapped += (_, args) => TapBoxBar(args.GetPosition(_boxBar)?.X ?? _boxBar.Width / 2);
@@ -110,20 +110,8 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         Grid.SetRow(_boxNeighbors, 1);
         Grid.SetRow(_canvas, 2);
 
-        var screen = Kit.LcdPanel(screenBody, padding: 4);
-        // The frame and its padding wear the current box wallpaper - no leftover default corners.
-        void TintScreen()
-        {
-            var (_, frame) = BoxGridRenderer.HueFor(_viewModel.BoxIndex);
-            screen.BackgroundColor = UiTokens.Wallpaper(_viewModel.BoxIndex);
-            screen.Stroke = frame;
-        }
-        TintScreen();
-        _viewModel.PropertyChanged += (_, args) =>
-        {
-            if (args.PropertyName is nameof(BoxBrowserViewModel.BoxIndex) or nameof(BoxBrowserViewModel.Save))
-                TintScreen();
-        };
+        // The grid canvas paints its own well (BoxGridRenderer), the party its own deck.
+        var screen = screenBody;
 
         _sidePanel = BuildSidePanel();
 
@@ -180,14 +168,14 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         };
     }
 
-    /// <summary>Draws the box-name bar: cream bar, label, yellow chevron caps when pages exist.</summary>
+    /// <summary>Draws the box header: the name banner, and a chevron each way when a box is there.</summary>
     private void PaintBoxBar(object? sender, SKPaintSurfaceEventArgs args)
     {
         var canvas = args.Surface.Canvas;
         canvas.Clear(SKColors.Transparent);
         var bounds = new SKRect(0, 0, args.Info.Width, args.Info.Height);
-        // Density-true text: ~14dp on the strip whatever the pixel ratio.
-        var fontSize = Math.Min(args.Info.Height * 0.52f, 15f * (float)DeviceDisplay.MainDisplayInfo.Density);
+        var unit = args.Info.Height / HeaderDesignHeight;
+        var fontSize = 34f * unit;
         if (_boxManageMode && _boxHeld)
         {
             var phase = (Environment.TickCount64 % 900) / 900d * Math.PI * 2;
@@ -203,10 +191,13 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
                 : $"Box {_viewModel.BoxIndex + 1:00}";
         if (_boxManageMode) boxName = _boxHeld ? $"Holding · {boxName}" : $"Manage · {boxName}";
         else if (_viewModel.SelectMode) boxName = $"{boxName} · marked {_viewModel.MarkedInCurrentBox}/{_viewModel.MarkedCount}";
-        PksmPaint.BoxNameBar(canvas, bounds, boxName, font,
+        StoragePaint.BoxHeader(canvas, bounds, boxName, font,
             canPrev: _viewModel.BoxIndex > 0,
-            canNext: _viewModel.BoxIndex < _viewModel.BoxCount - 1);
+            canNext: _viewModel.BoxIndex < _viewModel.BoxCount - 1, unit);
     }
+
+    /// <summary>The header's height in the 1920×1080 mockup: its unit is its height over this.</summary>
+    private const float HeaderDesignHeight = 72f;
 
     /// <summary>A compact three-box map keeps both neighbors understandable while ordering.</summary>
     private void PaintBoxNeighbors(object? sender, SKPaintSurfaceEventArgs args)
@@ -326,7 +317,9 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
     private void TapBoxBar(double x)
     {
         if (_boxManageMode || _editorFocusMode || _viewModel.Save is null) return;
-        var cap = Math.Max(44, _boxBar.Width * 0.12);
+        // The chevrons own the ends of the header, up to where the banner starts.
+        var cap = Math.Max(44, StoragePaint.BannerRect(new SKRect(0, 0, (float)_boxBar.Width, (float)_boxBar.Height),
+            (float)_boxBar.Height / HeaderDesignHeight).Left);
         if (x < cap) OnPadButton(PadButton.L);
         else if (x > _boxBar.Width - cap) OnPadButton(PadButton.R);
         else EnterBoxManageMode();
@@ -5450,7 +5443,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
 
     private int TouchSlot(SKPoint location) => _viewModel.BoxIndex == -1
         ? PartyView.SlotFromTouch(_canvas.CanvasSize, location)
-        : BoxGridRenderer.SlotFromTouch(_canvas.CanvasSize, location);
+        : BoxGridRenderer.StorageSlotFromTouch(_canvas.CanvasSize, location);
 
     /// <summary>Multi-select touch: a tap flips one mark, a drag sweeps the rectangle
     /// between where the finger landed and where it is (the hold-A gesture, by hand).</summary>

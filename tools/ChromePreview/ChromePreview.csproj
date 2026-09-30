@@ -9,5 +9,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/PKForge.Chrome/PKForge.Chrome.csproj" />
+    <ProjectReference Include="../../src/PKForge.Domain/PKForge.Domain.csproj" />
   </ItemGroup>
 </Project>

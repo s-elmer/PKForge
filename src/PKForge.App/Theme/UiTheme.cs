@@ -149,9 +149,6 @@ public static class UiTokens
     /// <summary>Readable text colour for a signal used AS text on navy (chips become plain coloured text).</summary>
     public static Color TextTone(Color signal) =>
         signal.GetLuminosity() < 0.62f ? signal.WithLuminosity(0.66f) : signal;
-
-    /// <summary>MAUI color for a box wallpaper index (cycled like the games' PC boxes).</summary>
-    public static Color Wallpaper(int boxIndex) => As(Pksm.BoxWallpapers[((boxIndex % Pksm.BoxWallpapers.Length) + Pksm.BoxWallpapers.Length) % Pksm.BoxWallpapers.Length]);
 }
 
 /// <summary>The 18 Pokémon type colors (PKHeX type IDs 0–17), adaptive-theme source.</summary>

@@ -1,0 +1,221 @@
+using SkiaSharp;
+
+namespace PKForge.Chrome;
+
+/// <summary>
+/// The storage box in the designer's art direction: a dark well on the blue lattice, a
+/// slanted box banner between two chevrons, Pokémon standing on each row's ground line, and a
+/// cursor made of a light pool under the Pokémon and a pixel pointer above it.
+/// Sizes are given in design pixels (the 1920×1080 mockup) and scaled by a unit.
+/// </summary>
+public static class StoragePaint
+{
+    public static readonly SKColor Well = new(0x04, 0x1F, 0x46);
+    public static readonly SKColor WellEdge = new(0x08, 0x37, 0x6E);
+    public static readonly SKColor Frame = new(0x1B, 0x23, 0x46);
+    public static readonly SKColor FrameEdge = new(0x23, 0x56, 0x9F);
+    public static readonly SKColor BannerTop = new(0x73, 0x8A, 0xB8);
+    public static readonly SKColor BannerBottom = new(0x25, 0x53, 0x96);
+    public static readonly SKColor PoolLight = new(0x78, 0xC8, 0xFF);
+
+    /// <summary>A mockup cell: 160×134 design pixels.</summary>
+    public const float DesignCellWidth = 160f;
+    public const float DesignCellHeight = 134f;
+
+    /// <summary>Showdown icons are drawn 4.5× their 40×30 size at unit 1.</summary>
+    public const float IconScale = 4.5f;
+
+    /// <summary>The icon area sits this far inside the well (design pixels, at a 1072×702 well).</summary>
+    public const float WellInsetX = 56f;
+    public const float WellInsetY = 16f;
+
+    private static SKPaint Fill(SKColor c) => new() { Color = c, IsAntialias = true };
+    private static SKPaint Stroke(SKColor c, float w) => new() { Color = c, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = w };
+
+    /// <summary>The box well: rounded dark fill with a thin blue edge.</summary>
+    public static void WellPanel(SKCanvas c, SKRect r, float unit)
+    {
+        var radius = 28f * unit;
+        using var fill = Fill(Well);
+        c.DrawRoundRect(r, radius, radius, fill);
+        var edge = 3f * unit;
+        using var stroke = Stroke(WellEdge, edge);
+        c.DrawRoundRect(SKRect.Inflate(r, -edge / 2, -edge / 2), radius, radius, stroke);
+    }
+
+    /// <summary>
+    /// The box header: a rounded frame holding the slanted banner with the box name, and a
+    /// double chevron at each end, dimmed when there is no box that way.
+    /// </summary>
+    public static void BoxHeader(SKCanvas c, SKRect r, string label, SKFont font, bool canPrev, bool canNext, float unit)
+    {
+        var edge = 3f * unit;
+        var radius = 18f * unit;
+        using (var frame = Fill(Frame)) c.DrawRoundRect(r, radius, radius, frame);
+        using (var stroke = Stroke(FrameEdge, edge)) c.DrawRoundRect(SKRect.Inflate(r, -edge / 2, -edge / 2), radius, radius, stroke);
+
+        var banner = BannerRect(r, unit);
+        var slant = 26f * unit;
+        using var path = new SKPath();
+        path.MoveTo(banner.Left, banner.Top);
+        path.LineTo(banner.Right - slant, banner.Top);
+        path.LineTo(banner.Right, banner.Bottom);
+        path.LineTo(banner.Left + slant, banner.Bottom);
+        path.Close();
+        using (var gradient = new SKPaint
+        {
+            IsAntialias = true,
+            Shader = SKShader.CreateLinearGradient(new SKPoint(0, banner.Top), new SKPoint(0, banner.Bottom),
+                [BannerTop, BannerBottom], SKShaderTileMode.Clamp),
+        })
+            c.DrawPath(path, gradient);
+        using (var outline = Stroke(Pksm.Ink, edge)) c.DrawPath(path, outline);
+
+        PksmPaint.CenterText(c, label, banner.MidX, banner.MidY, font, Pksm.Ink, Frame, SKTextAlign.Center);
+
+        Chevron(c, r.Left + 68f * unit, r.MidY, -1, unit, canPrev);
+        Chevron(c, r.Right - 68f * unit, r.MidY, 1, unit, canNext);
+    }
+
+    /// <summary>Where the banner sits in a header: 142 / 140 design pixels in from each end.</summary>
+    public static SKRect BannerRect(SKRect header, float unit) =>
+        new(header.Left + 142f * unit, header.Top, header.Right - 140f * unit, header.Bottom);
+
+    /// <summary>A double chevron pointing left (-1) or right (1).</summary>
+    public static void Chevron(SKCanvas c, float cx, float cy, int direction, float unit, bool enabled = true)
+    {
+        var thickness = 11f * unit;
+        var arm = 18f * unit;
+        using var path = new SKPath();
+        foreach (var offset in new[] { -16f, 14f })
+        {
+            var ox = cx + offset * unit;
+            var back = ox - direction * arm / 2;
+            var tip = ox + direction * arm / 2;
+            path.MoveTo(back, cy - arm);
+            path.LineTo(back + direction * thickness, cy - arm);
+            path.LineTo(tip + direction * thickness, cy);
+            path.LineTo(back + direction * thickness, cy + arm);
+            path.LineTo(back, cy + arm);
+            path.LineTo(tip, cy);
+            path.Close();
+        }
+        using var ink = Fill(enabled ? Pksm.Ink : Pksm.Ink.WithAlpha(0x40));
+        c.DrawPath(path, ink);
+    }
+
+    /// <summary>The soft light pool on the ground under the selected Pokémon.</summary>
+    public static void CursorPool(SKCanvas c, SKRect cell, float unit, SKColor? tint = null)
+    {
+        var top = cell.Bottom - 46f * unit;
+        var oval = new SKRect(cell.Left + 20f * unit, top + 8f * unit, cell.Right - 20f * unit, top + 52f * unit);
+        using var paint = new SKPaint
+        {
+            IsAntialias = true,
+            Color = (tint ?? PoolLight).WithAlpha(85),
+            MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, 8f * unit),
+        };
+        c.DrawOval(oval, paint);
+    }
+
+    /// <summary>How far the selected Pokémon is lifted off the ground.</summary>
+    public const float CursorLift = 10f;
+
+    // The pointer above the selected Pokémon, 11×8 art pixels:
+    // 1 dark rim, 2 white, 3 accent, 4 pale accent.
+    private static readonly string[] PointerArt =
+    [
+        "11111111111",
+        "12222222221",
+        "12444444421",
+        "01344444310",
+        "00134443100",
+        "00013431000",
+        "00001310000",
+        "00000100000",
+    ];
+
+    private static readonly SKColor PointerRim = new(0x08, 0x14, 0x34);
+    private static readonly SKColor PointerPale = new(0xC8, 0xEC, 0xFF);
+    private static readonly SKColor PointerPaleGreen = new(0xCC, 0xF5, 0xDC);
+
+    /// <summary>
+    /// The pixel pointer, centered over a cell and hanging just above it. Cyan for the move
+    /// hand; green while marking many (the games' two hands).
+    /// </summary>
+    public static void Pointer(SKCanvas c, SKRect cell, float unit, bool marking = false)
+    {
+        var px = 5f * unit;
+        var left = cell.MidX - 27f * unit;
+        var top = cell.Top - 10f * unit;
+        var accent = marking ? Pksm.CursorGreen : Pksm.LogoCyan;
+        var pale = marking ? PointerPaleGreen : PointerPale;
+        using var shadow = new SKPaint { Color = SKColors.Black.WithAlpha(90) };
+        using var paint = new SKPaint();
+        for (var pass = 0; pass < 2; pass++)
+        {
+            var dx = pass == 0 ? 4f * unit : 0f;
+            var dy = pass == 0 ? 6f * unit : 0f;
+            for (var y = 0; y < PointerArt.Length; y++)
+                for (var x = 0; x < PointerArt[y].Length; x++)
+                {
+                    var code = PointerArt[y][x];
+                    if (code == '0') continue;
+                    paint.Color = code switch { '1' => PointerRim, '2' => Pksm.Ink, '3' => accent, _ => pale };
+                    var cellRect = new SKRect(left + dx + x * px, top + dy + y * px, left + dx + (x + 1) * px, top + dy + (y + 1) * px);
+                    c.DrawRect(cellRect, pass == 0 ? shadow : paint);
+                }
+        }
+    }
+
+    /// <summary>The shiny star in a cell's top-right corner.</summary>
+    public static void ShinyStar(SKCanvas c, SKRect cell, SKFont font, float unit)
+    {
+        using var paint = Fill(Pksm.ShinyGold);
+        var x = cell.Right - 22f * unit;
+        var y = cell.Top + 18f * unit;
+        var metrics = font.Metrics;
+        c.DrawText("★", x, y - (metrics.Ascent + metrics.Descent) / 2, SKTextAlign.Center, font, paint);
+    }
+
+    /// <summary>
+    /// A Showdown box icon standing on the cell's ground line, 4.5× at unit 1, lifted when
+    /// selected. The icon's own padding keeps its feet on the line.
+    /// </summary>
+    public static SKRect IconRect(SKRect cell, float unit, float lift)
+    {
+        var w = 40f * IconScale * unit;
+        var h = 30f * IconScale * unit;
+        var bottom = cell.Bottom + 3f * unit - lift;
+        return new SKRect(cell.MidX - w / 2, bottom - h, cell.MidX + w / 2, bottom);
+    }
+
+    /// <summary>
+    /// Where a sprite that has no Showdown icon (a shiny) stands: scaled to fit the footprint
+    /// of the Pokémon's normal icon, so shinies are the same size as their normal form.
+    /// </summary>
+    public static SKRect FootprintRect(SKRect cell, SKSizeI spriteSize, SKSize footprint, float lift, float unit)
+    {
+        var scale = Math.Min(footprint.Width / spriteSize.Width, footprint.Height / spriteSize.Height);
+        var w = spriteSize.Width * scale;
+        var h = spriteSize.Height * scale;
+        var bottom = cell.Bottom - 14f * unit - lift;
+        return new SKRect(cell.MidX - w / 2, bottom - h, cell.MidX + w / 2, bottom);
+    }
+
+    /// <summary>The bounds of the pixels above an alpha threshold within an area; empty when none.</summary>
+    public static SKRectI OpaqueBounds(SKBitmap bitmap, SKRectI area, byte threshold = 0)
+    {
+        int left = area.Right, top = area.Bottom, right = area.Left - 1, bottom = area.Top - 1;
+        for (var y = area.Top; y < area.Bottom; y++)
+            for (var x = area.Left; x < area.Right; x++)
+            {
+                if (bitmap.GetPixel(x, y).Alpha <= threshold) continue;
+                if (x < left) left = x;
+                if (x > right) right = x;
+                if (y < top) top = y;
+                if (y > bottom) bottom = y;
+            }
+        return right < left ? SKRectI.Empty : new SKRectI(left, top, right + 1, bottom + 1);
+    }
+}

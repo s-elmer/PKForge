@@ -29,8 +29,8 @@ public sealed class ShowdownCatalogTests
     }
 
     [Fact]
-    public void UnknownFormsFallBackToTheBaseIcon() =>
-        Assert.Equal(ShowdownCatalog.IconCell(new SpriteLook(6, 0, false)), ShowdownCatalog.IconCell(new SpriteLook(6, 99, false)));
+    public void UnknownFormsHaveNoIconSoPkhexArtIsUsed() =>
+        Assert.Null(ShowdownCatalog.IconCell(new SpriteLook(6, 99, false)));
 
     [Fact]
     public void CommentsAndMalformedRowsAreSkipped()

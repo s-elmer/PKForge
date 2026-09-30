@@ -16,6 +16,13 @@ if (args.Length > 0 && args[0] == "icons")
         Path.Combine(root, "src/PKForge.App/Resources/Fonts/NDS12.ttf"), Path.Combine(sheetDir, "icon_sheet.png"));
     return;
 }
+if (args.Length > 0 && args[0] == "storage")
+{
+    // The storage box in the designer's direction, drawn by StoragePaint with the bundled
+    // Showdown icons. Usage: dotnet run --project tools/ChromePreview -- storage [output.png]
+    StoragePreview.Render(root, args.Length > 1 ? args[1] : Path.Combine(root, "tools/ChromePreview/out/storage_box.png"));
+    return;
+}
 var art = new PksmArt();
 foreach (var f in Directory.GetFiles(Path.Combine(root, "src/PKForge.App/Resources/UI/pksm"), "*.png"))
     art.Supply(Path.GetFileName(f), File.ReadAllBytes(f));
