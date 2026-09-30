@@ -54,17 +54,17 @@ public sealed class SecondScreenBoxPage : ContentPage
         var sessions = services?.GetService<Domain.ISaveSessionService>();
 
         // The inspector: the Gen-6 summary surface, a light-blue world carrying white panels.
-        _inspector = new MonSummaryView(sprites);
+        _inspector = new MonSummaryView(sprites)
+        {
+            FixHint = "Press + > Legalize this one to find the closest legal version. Its PID, nature or IVs may change.",
+        };
         if (state is not null)
         {
             _inspector.SetPage(state.InspectorPage);
             _inspector.PageChanged += page => state.InspectorPage = page;
         }
-        var summary = new Grid
-        {
-            Padding = new Thickness(14, 12),
-            Children = { _inspector },
-        };
+        // The summary is drawn for this screen's full 1240×1080 and runs to its edges.
+        var summary = new Grid { Children = { _inspector } };
 
         // A purpose-built game banner replaces inconsistent third-party hero art and covers every title.
         var hero = new GameHeroBackdrop { IsVisible = false };
@@ -104,7 +104,7 @@ public sealed class SecondScreenBoxPage : ContentPage
             {
                 case "✓" or "✗":
                     return built.WithLegality(_viewModel.LegalityBadge == "✓",
-                        (_viewModel.LegalityText ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries));
+                        (_viewModel.LegalityText ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries), _viewModel.LegalityChecks);
                 default:
                     pending = session.SupportsLegalityAnalysis;
                     return built;
