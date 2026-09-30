@@ -77,7 +77,7 @@ public sealed partial class BoxBrowserPage
     {
         BackgroundColor = RowBand(dark),
         Stroke = Colors.Transparent,
-        StrokeThickness = 1.2,
+        StrokeThickness = Design(3),
         StrokeShape = new Microsoft.Maui.Controls.Shapes.Rectangle(),
         Padding = new Thickness(Design(34), 0, Design(28), 0),
         MinimumHeightRequest = EditorRowHeight,
@@ -417,6 +417,23 @@ public sealed partial class BoxBrowserPage
                 }
             });
 #endif
+        }
+    }
+
+    /// <summary>The focused row or button: the section chip's gradient.</summary>
+    private static readonly LinearGradientBrush EditorFocusBrush = new(
+        [new GradientStop(EditorPaint.ChipTop.ToMauiColor(), 0), new GradientStop(EditorPaint.ChipBottom.ToMauiColor(), 1)],
+        new Point(0, 0), new Point(0, 1));
+
+    private static readonly Color FocusedCaption = EditorPaint.ChipInk.ToMauiColor();
+
+    /// <summary>Turns a row's captions pale while it is focused (they are the label blue at rest).</summary>
+    private static void SetFocusedCaptions(Border row, bool focused)
+    {
+        foreach (var label in row.GetVisualTreeDescendants().OfType<Label>())
+        {
+            if (focused && label.TextColor == EditorLabel) label.TextColor = FocusedCaption;
+            else if (!focused && label.TextColor == FocusedCaption) label.TextColor = EditorLabel;
         }
     }
 

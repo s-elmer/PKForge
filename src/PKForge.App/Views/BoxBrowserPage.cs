@@ -578,13 +578,15 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             switch (target.View)
             {
                 case Border border:
-                    // Rows rest on their own stripe; the focus look is painted on top.
+                    // Rows rest on their own band; the focus look is painted on top.
+                    border.Background = null;
+                    border.BackgroundColor = target.OriginalBackground ?? Colors.Transparent;
                     border.Stroke = Colors.Transparent;
                     border.ClearValue(VisualElement.ShadowProperty);
-                    if (border.BackgroundColor == UiTokens.SelectFill)
-                        border.BackgroundColor = target.OriginalBackground ?? Colors.Transparent;
+                    SetFocusedCaptions(border, false);
                     break;
                 case Button button:
+                    button.Background = null;
                     Kit.SetButtonFocus(button, false, target.OriginalBackground, target.OriginalTextColor);
                     if (target.OriginalBorder is not null) button.BorderColor = target.OriginalBorder;
                     break;
@@ -596,12 +598,15 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         switch (focused.View)
         {
             case Border border:
-                // The selected-row look (cobalt body + pale rim), never a cyan glow.
-                border.BackgroundColor = UiTokens.SelectFill;
-                border.Stroke = UiTokens.Rim;
+                // The section chip's look: its blue gradient, a thin cyan rim, a pale caption.
+                border.Background = EditorFocusBrush;
+                border.Stroke = EditorPaint.Cyan.ToMauiColor();
+                SetFocusedCaptions(border, true);
                 break;
             case Button button:
-                Kit.SetButtonFocus(button, true);
+                button.Background = EditorFocusBrush;
+                button.BorderColor = EditorPaint.Cyan.ToMauiColor();
+                button.TextColor = EditorPaint.ChipInk.ToMauiColor();
                 break;
         }
 
