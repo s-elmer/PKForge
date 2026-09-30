@@ -455,23 +455,66 @@ public static class Kit
         Padding = 0,
     };
 
-    /// <summary>A round cyan key disc (footer glyph button: A, B, X, LR ...).</summary>
+    // The designer's drawn keys, by footer glyph; the others keep the drawn disc.
+    private static readonly Dictionary<string, string> KeyArt = new()
+    {
+        ["A"] = "key_a", ["+"] = "key_plus", ["L"] = "key_l", ["X"] = "key_x", ["Y"] = "key_y",
+    };
+
+    private static readonly Dictionary<string, SKImage?> KeyImages = new();
+
+    private static SKImage? KeyImage(string name)
+    {
+        if (KeyImages.TryGetValue(name, out var image)) return image;
+        try
+        {
+            using var stream = FileSystem.OpenAppPackageFileAsync($"ui/design/{name}.png").GetAwaiter().GetResult();
+            using var bitmap = SKBitmap.Decode(stream);
+            image = bitmap is null ? null : SKImage.FromBitmap(bitmap);
+        }
+        catch (Exception error) when (error is IOException or FileNotFoundException) { image = null; }
+        KeyImages[name] = image;
+        return image;
+    }
+
+    /// <summary>
+    /// A footer key: the designer's pixel button tinted cyan for A, +, L, X and Y, and a round
+    /// cyan disc with the glyph for the rest (B, −, LR ...).
+    /// </summary>
     public static Border GlyphKey(string glyph, Action? onTap = null)
     {
+        View face;
+        if (KeyArt.TryGetValue(glyph, out var art) && KeyImage(art) is { } image)
+        {
+            var canvas = new SKCanvasView { InputTransparent = true };
+            canvas.PaintSurface += (_, args) =>
+            {
+                var c = args.Surface.Canvas;
+                c.Clear(SKColors.Transparent);
+                using var tint = new SKPaint { ColorFilter = SKColorFilter.CreateBlendMode(UiTokens.BagCyanEdge.ToSKColor(), SKBlendMode.SrcIn) };
+                var side = Math.Min(args.Info.Width, args.Info.Height);
+                var dest = SKRect.Create((args.Info.Width - side) / 2f, (args.Info.Height - side) / 2f, side, side);
+                c.DrawImage(image, dest, new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None), tint);
+            };
+            face = canvas;
+        }
+        else face = new Label
+        {
+            Text = glyph, FontFamily = DsChrome.PixelFont, TextColor = UiTokens.OnAccent, FontSize = UiTokens.TextLabel,
+            VerticalTextAlignment = TextAlignment.Center, HorizontalTextAlignment = TextAlignment.Center,
+        };
+        var drawn = face is SKCanvasView;
         var key = new Border
         {
             StrokeThickness = 0,
             StrokeShape = new RoundRectangle { CornerRadius = 11 },
-            BackgroundColor = UiTokens.BagCyanEdge,
-            Padding = new Thickness(glyph.Length > 1 ? 7 : 0, 0),
+            BackgroundColor = drawn ? Colors.Transparent : UiTokens.BagCyanEdge,
+            Padding = new Thickness(!drawn && glyph.Length > 1 ? 7 : 0, 0),
             MinimumWidthRequest = 22,
+            WidthRequest = drawn ? 22 : -1,
             HeightRequest = 22,
             VerticalOptions = LayoutOptions.Center,
-            Content = new Label
-            {
-                Text = glyph, FontFamily = DsChrome.PixelFont, TextColor = UiTokens.OnAccent, FontSize = UiTokens.TextLabel,
-                VerticalTextAlignment = TextAlignment.Center, HorizontalTextAlignment = TextAlignment.Center,
-            },
+            Content = face,
         };
         if (onTap is not null)
         {
