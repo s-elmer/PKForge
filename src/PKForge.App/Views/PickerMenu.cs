@@ -112,14 +112,13 @@ public sealed class PickerMenu : IPadHandler
         {
             SelectionMode = SelectionMode.Single,
             ItemsSource = _filtered,
-            ItemTemplate = new DataTemplate(() => BuildRow(livePreview is null ? null : this)),
+            ItemTemplate = new DataTemplate(() => BuildRow(this)),
         };
         _list.SelectionChanged += (_, args) =>
         {
-            if (_padSelecting) { _padSelecting = false; UpdatePreview(); return; } // pad only moves the highlight
-            if (_livePreview is not null) return; // preview rows own their taps (OnRowTapped)
-            if (args.CurrentSelection.FirstOrDefault() is PickItem picked)
-                Close(picked);
+            // The pad only moves the highlight; taps are the rows' own (OnRowTapped), since the
+            // list reports nothing for a tap on the row that is already selected.
+            if (_padSelecting) { _padSelecting = false; UpdatePreview(); }
         };
 
         // The list is the Star row so it fills the host-capped window and scrolls itself -
@@ -178,7 +177,7 @@ public sealed class PickerMenu : IPadHandler
         _router?.Push(this);
     }
 
-    private static View BuildRow(PickerMenu? tapOwner)
+    private static View BuildRow(PickerMenu tapOwner)
     {
         var icon = new Image { WidthRequest = 26, HeightRequest = 26, IsVisible = false, VerticalOptions = LayoutOptions.Center };
         icon.SetBinding(Image.SourceProperty, new Binding(nameof(PickItem.IconPath)));
@@ -233,12 +232,9 @@ public sealed class PickerMenu : IPadHandler
             Margin = new Thickness(0, 0, 0, 3),
             Content = row,
         };
-        if (tapOwner is not null)
-        {
-            var tap = new TapGestureRecognizer();
-            tap.Tapped += (_, _) => { if (cell.BindingContext is PickItem item) tapOwner.OnRowTapped(item); };
-            cell.GestureRecognizers.Add(tap);
-        }
+        var tap = new TapGestureRecognizer();
+        tap.Tapped += (_, _) => { if (cell.BindingContext is PickItem item) tapOwner.OnRowTapped(item); };
+        cell.GestureRecognizers.Add(tap);
         VisualStateManager.SetVisualStateGroups(cell, new VisualStateGroupList
         {
             new VisualStateGroup
@@ -325,11 +321,15 @@ public sealed class PickerMenu : IPadHandler
     private bool _padSelecting;
     private bool _armed; // preview mode: the highlighted row was aimed by a tap
 
-    /// <summary>Preview mode: the first tap aims (the panel follows), a second tap on the same row picks.</summary>
+    /// <summary>
+    /// A tap picks the row at once; in preview mode the first tap aims (the panel follows) and
+    /// a second tap on the same row picks.
+    /// </summary>
     private void OnRowTapped(PickItem item)
     {
         var tapped = _filtered.IndexOf(item);
         if (tapped < 0) return;
+        if (_livePreview is null) { Close(item); return; }
         if (tapped == _index && _armed) { Close(item); return; }
         _index = tapped;
         HighlightCurrent(scroll: false);
@@ -345,9 +345,14 @@ public sealed class PickerMenu : IPadHandler
     {
         if (_filtered.Count == 0) return;
         _index = Math.Clamp(_index, 0, _filtered.Count - 1);
-        _padSelecting = true;
         _armed = false;
-        _list.SelectedItem = _filtered[_index];
+        // Only a real change raises SelectionChanged; a flag set for no event would swallow the next tap.
+        var target = _filtered[_index];
+        if (!Equals(_list.SelectedItem, target))
+        {
+            _padSelecting = true;
+            _list.SelectedItem = target;
+        }
         if (scroll) _list.ScrollTo(_index, position: ScrollToPosition.Center, animate: false);
         UpdatePreview();
     }
