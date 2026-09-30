@@ -48,6 +48,10 @@
     <MauiAsset Include="../../external/PKHeX/PKHeX.Drawing.PokeSprite/Resources/img/Big Shiny Sprites/*.png" LogicalName="sprites/%(Filename)%(Extension)" />
     <!-- Luminescent Platinum's custom form icons (Team Lumi; see Resources/UI/ATTRIBUTION.md). -->
     <MauiAsset Include="Resources/UI/lumi/*.png" LogicalName="sprites/lumi/%(Filename)%(Extension)" />
+    <!-- Pokémon Showdown sprites (Smogon), built by tools/ShowdownSprites/build.py. -->
+    <MauiAsset Include="Resources/Showdown/icons.png" LogicalName="showdown/icons.png" />
+    <MauiAsset Include="Resources/Showdown/front/*.png" LogicalName="showdown/front/%(Filename)%(Extension)" />
+    <MauiAsset Include="Resources/Showdown/front-shiny/*.png" LogicalName="showdown/front-shiny/%(Filename)%(Extension)" />
     <!-- PKHeX ships no pixel sprites past species 905 (Legends: Arceus); for Gen 9 it
          displays official artwork. Bundle that artwork block (base + forms, ~1MB) as
          the offline Gen 9 fallback, exactly what PKHeX itself shows. -->
