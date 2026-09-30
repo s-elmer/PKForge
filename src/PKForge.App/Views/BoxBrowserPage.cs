@@ -8,6 +8,8 @@ using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
 
+using static PKForge.App.Views.EditorRows;
+
 namespace PKForge.App.Views;
 
 /// <summary>

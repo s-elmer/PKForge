@@ -7,6 +7,8 @@ using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
 
+using static PKForge.App.Views.EditorRows;
+
 namespace PKForge.App.Views;
 
 /// <summary>
@@ -16,87 +18,9 @@ namespace PKForge.App.Views;
 /// </summary>
 public sealed partial class BoxBrowserPage
 {
-    private static readonly Color EditorLabel = EditorPaint.Label.ToMauiColor();
-    private static readonly Color EditorValue = EditorPaint.Value.ToMauiColor();
-    private static readonly Color ToolFill = new SKColor(0x25, 0x53, 0x9A).ToMauiColor();
-    private static readonly Color ToolEdge = new SKColor(0x4C, 0x7C, 0xC4).ToMauiColor();
-
-    /// <summary>
-    /// A length in mockup pixels (the 1920×1080 design) as device-independent units on this
-    /// display: exact on the Thor's 1920×1080 screen, scaled with the screen elsewhere.
-    /// </summary>
-    internal static double Design(double pixels)
-    {
-        var display = DeviceDisplay.MainDisplayInfo;
-        var longSide = Math.Max(display.Width, display.Height);
-        return longSide <= 0 || display.Density <= 0 ? pixels / 2 : pixels * (longSide / 1920) / display.Density;
-    }
-
-    /// <summary>A row's height and text size (the mockup's 64 and 32 pixels).</summary>
-    private static readonly double EditorRowHeight = Design(64);
-    private static readonly double EditorText = Design(32);
-
     private SKCanvasView? _editorHeader;
     private SKCanvasView? _editorBackdrop;
     private string? _editorExpLine;
-
-    private static Color RowBand(bool dark) => EditorPaint.RowBand(dark).ToMauiColor();
-
-    /// <summary>The value text of every editor row.</summary>
-    private static Label EditorValueLabel()
-    {
-        var label = Kit.BlueprintValue(EditorText);
-        label.TextColor = EditorValue;
-        return label;
-    }
-
-    /// <summary>The "›" at the end of a row that opens something.</summary>
-    private static Label EditorChevron() => new()
-    {
-        Text = "›",
-        FontFamily = DsChrome.PixelFont,
-        FontSize = EditorText,
-        TextColor = EditorValue,
-        VerticalTextAlignment = TextAlignment.Center,
-    };
-
-    /// <summary>The row caption: pixel font, the designer's label blue.</summary>
-    private static Label EditorCaption(string caption, double? width = null) => new()
-    {
-        Text = Kit.Tidy(caption),
-        FontFamily = DsChrome.PixelFont,
-        FontSize = EditorText,
-        TextColor = EditorLabel,
-        WidthRequest = width ?? Design(214),
-        VerticalTextAlignment = TextAlignment.Center,
-        LineBreakMode = LineBreakMode.NoWrap,
-    };
-
-    /// <summary>A full-width band: square, flush with the panel edges, the focus rim painted on it.</summary>
-    private static Border EditorBand(View content, bool dark) => new()
-    {
-        BackgroundColor = RowBand(dark),
-        Stroke = Colors.Transparent,
-        StrokeThickness = Design(3),
-        StrokeShape = new Microsoft.Maui.Controls.Shapes.Rectangle(),
-        Padding = new Thickness(Design(34), 0, Design(28), 0),
-        MinimumHeightRequest = EditorRowHeight,
-        Content = content,
-    };
-
-    /// <summary>A section divider: the title in a slanted chip between fading rails.</summary>
-    private static View EditorSection(string title)
-    {
-        var view = new SKCanvasView { HeightRequest = EditorRowHeight, InputTransparent = true };
-        view.PaintSurface += (_, args) =>
-        {
-            var canvas = args.Surface.Canvas;
-            canvas.Clear(SKColors.Transparent);
-            var unit = Math.Min(args.Info.Width / EditorPaint.DesignWidth, args.Info.Height / 64f);
-            EditorPaint.PaintSection(canvas, new SKRect(0, 0, args.Info.Width, args.Info.Height), title, PixelTypeface(), unit);
-        };
-        return view;
-    }
 
     /// <summary>The panel shell: the drawn well and watermark behind, the drawn header on top.</summary>
     private Grid EditorShell(View body)
@@ -391,45 +315,6 @@ public sealed partial class BoxBrowserPage
         return ShowLegalityReportAsync(detail);
     }
 
-    /// <summary>
-    /// The editor's text field. Android pads its text fields for touch; this one keeps only a
-    /// little bottom padding, which holds the underline below the text, so a field row is as
-    /// tall as the other rows.
-    /// </summary>
-    private sealed class EditorEntry : Entry
-    {
-        static EditorEntry()
-        {
-#if ANDROID
-            Microsoft.Maui.Handlers.EntryHandler.Mapper.AppendToMapping(nameof(EditorEntry), (handler, view) =>
-            {
-                if (view is EditorEntry)
-                {
-                    var bottom = (int)(Design(10) * DeviceDisplay.MainDisplayInfo.Density);
-                    handler.PlatformView.SetPadding(handler.PlatformView.PaddingLeft, 0, handler.PlatformView.PaddingRight, bottom);
-                }
-            });
-#endif
-        }
-    }
-
-    /// <summary>The focused row or button: the section chip's gradient.</summary>
-    private static readonly LinearGradientBrush EditorFocusBrush = new(
-        [new GradientStop(EditorPaint.ChipTop.ToMauiColor(), 0), new GradientStop(EditorPaint.ChipBottom.ToMauiColor(), 1)],
-        new Point(0, 0), new Point(0, 1));
-
-    private static readonly Color FocusedCaption = EditorPaint.ChipInk.ToMauiColor();
-
-    /// <summary>Turns a row's captions pale while it is focused (they are the label blue at rest).</summary>
-    private static void SetFocusedCaptions(Border row, bool focused)
-    {
-        foreach (var label in row.GetVisualTreeDescendants().OfType<Label>())
-        {
-            if (focused && label.TextColor == EditorLabel) label.TextColor = FocusedCaption;
-            else if (!focused && label.TextColor == FocusedCaption) label.TextColor = EditorLabel;
-        }
-    }
-
     // Decoded box wallpapers by asset name (a few dozen at most), with their average colour.
     private static readonly Dictionary<string, (SKImage Art, SKColor Average)?> Wallpapers = new(StringComparer.Ordinal);
     private static readonly HashSet<string> WallpapersLoading = new(StringComparer.Ordinal);
@@ -512,19 +397,5 @@ public sealed partial class BoxBrowserPage
         return view;
     }
 
-    /// <summary>A tool button: flat navy-blue plate, pale edge, pixel label, no icon.</summary>
-    private static Button EditorTool(string text, bool primary = false) => new()
-    {
-        Text = text,
-        FontFamily = DsChrome.PixelFont,
-        FontSize = EditorText * 0.94,
-        TextColor = primary ? EditorPaint.ChipInk.ToMauiColor() : UiTokens.Ink0,
-        BackgroundColor = primary ? EditorPaint.CyanFill.ToMauiColor() : ToolFill,
-        BorderColor = primary ? EditorPaint.Cyan.ToMauiColor() : ToolEdge,
-        BorderWidth = 1.5,
-        CornerRadius = (int)Math.Round(Design(20)),
-        Padding = new Thickness(Design(16), 0),
-        HeightRequest = Design(72),
-        LineBreakMode = LineBreakMode.TailTruncation,
-    };
+
 }
