@@ -53,6 +53,8 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
 
     [ObservableProperty] private EntityDetail? _selected;
     [ObservableProperty] private string _legalityBadge = string.Empty;
+    /// <summary>The selected slot's legality checks by topic; null until a verdict arrives.</summary>
+    [ObservableProperty] private IReadOnlyList<LegalityCheck>? _legalityChecks;
     [ObservableProperty] private string _legalityText = string.Empty;
 
     // Editor fields (strings for binding; parsed on save).
@@ -140,6 +142,7 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
         var detail = engineSession.ReadEntity(BoxIndex, slot);
         Selected = detail;
         _theme.ApplyTypes(detail.Types);
+        LegalityChecks = null;
         if (detail.IsEmpty)
         {
             LegalityBadge = string.Empty;
@@ -173,6 +176,7 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
             _sweep.TryGetVerdict(documentId, MutationGeneration, BoxIndex, slot, out var cached) &&
             cached is not null)
         {
+            LegalityChecks = cached.Checks;
             LegalityBadge = cached.Valid ? "✓" : "✗";
             LegalityText = string.Join('\n', cached.Report);
             return;
@@ -190,6 +194,7 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 if (SelectedSlot != slot) return;
+                LegalityChecks = report.Checks;
                 LegalityBadge = report.Valid ? "✓" : "✗";
                 LegalityText = string.Join('\n', report.Lines);
             });

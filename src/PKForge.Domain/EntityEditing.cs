@@ -738,5 +738,14 @@ public sealed record EntityEdit(
     int? Gender = null,
     int? Friendship = null);
 
-/// <summary>Human-readable legality result for one slot.</summary>
-public sealed record LegalityReport(bool Valid, IReadOnlyList<string> Lines);
+/// <summary>Human-readable legality result for one slot, with its checks grouped by topic.</summary>
+public sealed record LegalityReport(bool Valid, IReadOnlyList<string> Lines, IReadOnlyList<LegalityCheck>? Checks = null);
+
+/// <summary>How a legality check came out, worst last.</summary>
+public enum LegalityJudgement { Valid, Fishy, Invalid }
+
+/// <summary>
+/// One topic of the legality analysis (Encounter, PID / IVs, Moves...): its worst outcome and
+/// the reasons behind anything that is not valid.
+/// </summary>
+public sealed record LegalityCheck(string Name, LegalityJudgement Judgement, IReadOnlyList<string> Reasons);

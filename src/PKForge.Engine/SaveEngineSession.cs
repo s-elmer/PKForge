@@ -2653,7 +2653,7 @@ public sealed class LegalityService : ILegalityService
         var analysis = new LegalityAnalysis(engineSession.GetEntity(box, slot));
         var report = analysis.Report(verbose: false);
         var lines = report.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return new LegalityReport(analysis.Valid, lines.Length == 0 ? ["No findings."] : lines);
+        return new LegalityReport(analysis.Valid, lines.Length == 0 ? ["No findings."] : lines, LegalityChecks.Group(analysis));
     }
 
     public IReadOnlyList<SlotLegality> Sweep(ISaveEngineSession session,
@@ -2677,7 +2677,7 @@ public sealed class LegalityService : ILegalityService
             results.Add(new SlotLegality(
                 summary.Box, summary.Slot, report.Valid,
                 report.Valid ? string.Empty : report.Lines.FirstOrDefault() ?? "Illegal.",
-                report.Lines));
+                report.Lines, report.Checks));
             onProgress?.Invoke(i + 1, occupied.Count);
         }
         return results;
