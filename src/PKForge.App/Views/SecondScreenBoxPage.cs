@@ -382,11 +382,6 @@ public sealed class SecondScreenBoxPage : ContentPage
 
     // ── The logo-deck Pokédex view (species preview while the picker is open) ──
 
-    private static readonly string[] RomanGens = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"];
-    private static readonly string[] RegionNames = ["Kanto", "Johto", "Hoenn", "Sinnoh", "Unova", "Kalos", "Alola", "Galar", "Paldea"];
-    private static readonly (int First, int Last)[] GenBounds =
-        [(1, 151), (152, 251), (252, 386), (387, 493), (494, 649), (650, 721), (722, 809), (810, 905), (906, 1025)];
-
     private SKCanvasView _dexSprite = null!;
     private int _dexSpecies;
     private readonly Label _dexName = new() { TextColor = UiTokens.Ink0, FontSize = 24, FontAttributes = FontAttributes.Bold, CharacterSpacing = 1 };
@@ -486,8 +481,7 @@ public sealed class SecondScreenBoxPage : ContentPage
         _dexName.Text = data is not null && species < data.SpeciesNames.Count ? data.SpeciesNames[species] : $"#{species}";
         _dexNumber.Text = $"No. {species:000}";
 
-        var genIndex = Array.FindIndex(GenBounds, b => species >= b.First && species <= b.Last);
-        _dexOrigin.Text = genIndex >= 0 ? $"First seen in Generation {RomanGens[genIndex]} · {RegionNames[genIndex]}" : "";
+        _dexOrigin.Text = Domain.DexRegions.Of(species) is { } region ? $"First seen in Generation {region.Roman} · {region.Name}" : "";
 
         _dexTypes.Children.Clear();
         if (session is not null)

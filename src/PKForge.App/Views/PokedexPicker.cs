@@ -311,8 +311,6 @@ public sealed class PokedexPicker : IPadHandler
         }
     }
 
-    private static readonly string[] RomanGens = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"];
-
     /// <summary>Toggles one type in the multi-type filter (a mon must match ALL selected types).</summary>
     private void ToggleType(int type)
     {
@@ -388,7 +386,7 @@ public sealed class PokedexPicker : IPadHandler
                 Opacity = 0.55,
                 StrokeShape = new RoundRectangle { CornerRadius = 6 },
                 Padding = new Thickness(10, 3),
-                Content = new Label { Text = $"Gen {RomanGens[gen - 1]}", TextColor = Colors.White, FontSize = UiTokens.TextSmall, FontAttributes = FontAttributes.Bold },
+                Content = new Label { Text = $"Gen {DexRegions.All[gen - 1].Roman}", TextColor = Colors.White, FontSize = UiTokens.TextSmall, FontAttributes = FontAttributes.Bold },
             };
             var tap = new TapGestureRecognizer();
             tap.Tapped += (_, _) =>

@@ -10,16 +10,13 @@ using SkiaSharp.Views.Maui.Controls;
 namespace PKForge.App.Views;
 
 /// <summary>
-/// The dex as a PC box: a 6x5 grid of sprites on wallpaper pages. The cursor only
-/// moves with the pad; A cycles unseen → seen → caught. Touch taps the cell directly.
-/// Edits are staged and saved through the safe write path on exit.
+/// The dex as one scrolling list (<see cref="DexGridView"/>): every species in national order,
+/// a section per generation. A (or a tap) cycles unseen, seen, caught; L/R hop a generation;
+/// touch scrolls it like a real Pokédex. Edits are staged and saved through the safe write
+/// path on exit.
 /// </summary>
 public sealed class DexEditorPage : IPadPagingHandler
 {
-    private const int Columns = BoxGridRenderer.Columns;
-    private const int Rows = BoxGridRenderer.Rows;
-    private const int PageSize = Columns * Rows;
-
     private readonly TaskCompletionSource<bool> _result = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Grid _host;
     private readonly Grid _overlay;
@@ -35,14 +32,12 @@ public sealed class DexEditorPage : IPadPagingHandler
     private readonly List<int> _missing = [];
     private readonly List<int> _orderedIds = [];
     private readonly List<int> _viewIds = [];
-    private readonly SKCanvasView _canvas;
+    private readonly DexGridView _grid;
     private readonly Label _title;
     private readonly Label _progress;
     private readonly Label _cursorInfo;
     private bool _gapsMode;
     private bool _loaded;
-    private int _page;
-    private int _cursor; // index within the current page
     private string _query = "";
 
     public static async Task ShowAsync(Grid host, BoxBrowserViewModel viewModel, ISaveEngineSession session,
@@ -73,14 +68,14 @@ public sealed class DexEditorPage : IPadPagingHandler
         _progress = new Label { TextColor = UiTokens.Ink1, FontFamily = DsChrome.PixelFont, FontSize = UiTokens.TextBody, HorizontalTextAlignment = TextAlignment.End, HorizontalOptions = LayoutOptions.End };
         _cursorInfo = new Label { TextColor = UiTokens.Ink1, FontFamily = DsChrome.PixelFont, FontSize = UiTokens.TextBody };
 
-        _canvas = new SKCanvasView { EnableTouchEvents = true, VerticalOptions = LayoutOptions.Fill };
-        _canvas.PaintSurface += Paint;
-        _canvas.Touch += Touch;
+        _grid = new DexGridView(sprites) { VerticalOptions = LayoutOptions.Fill };
+        _grid.Tapped += index => Activate(_viewIds[index]);
+        _grid.CursorChanged += _ => RefreshInfo();
 
         View hints = Kit.WindowHints(
             ("A", "Cycle", () => OnPadButton(PadButton.A)),
             ("B", "Done", () => _ = CloseAsync()),
-            ("LR", "Page", () => OnPadButton(PadButton.R)),
+            ("LR", "Generation", () => OnPadButton(PadButton.R)),
             ("Y", "Select all (gaps)", SelectAllGaps),
             ("X", "Actions", () => _ = ShowActionsAsync()));
 
@@ -111,17 +106,20 @@ public sealed class DexEditorPage : IPadPagingHandler
             {
                     new Grid
                     {
-                        ColumnDefinitions = [new(GridLength.Star), new(GridLength.Star)],
+                        // The title keeps its width; the counter takes the rest, so they never overlap.
+                        ColumnSpacing = 16,
+                        ColumnDefinitions = [new(GridLength.Auto), new(GridLength.Star)],
                         Children = { _title, _progress },
                     },
                     search,
-                    _canvas,
+                    _grid,
                 _cursorInfo,
                 hints,
             },
         };
+        Grid.SetColumn(_progress, 1);
         Grid.SetRow(search, 1);
-        Grid.SetRow(_canvas, 2);
+        Grid.SetRow(_grid, 2);
         Grid.SetRow(_cursorInfo, 3);
         Grid.SetRow(hints, 4);
 
@@ -177,112 +175,6 @@ public sealed class DexEditorPage : IPadPagingHandler
         });
     }
 
-    private int Count => _viewIds.Count;
-    private int PageCount => Math.Max(1, (Count + PageSize - 1) / PageSize);
-    private int IdAt(int page, int index) => _viewIds[page * PageSize + index];
-
-    private void Paint(object? sender, SKPaintSurfaceEventArgs args)
-    {
-        var canvas = args.Surface.Canvas;
-        var wallpaper = BoxGridRenderer.WallpaperAt(_gapsMode ? 4 : 0);
-        PksmPaint.Wallpaper(canvas, new SKRect(0, 0, args.Info.Width, args.Info.Height), wallpaper);
-        if (!_loaded) return;
-
-        var shadow = Pksm.WallpaperShade(wallpaper);
-        using var font = new SKFont { Size = 14, Edging = SKFontEdging.Antialias };
-        for (var index = 0; index < PageSize; index++)
-        {
-            var rect = BoxGridRenderer.SlotRect(args.Info, index);
-            var absolute = _page * PageSize + index;
-            var exists = absolute < Count;
-            PksmPaint.Slot(canvas, rect, wallpaper, empty: !exists);
-            if (!exists) continue;
-            var id = IdAt(_page, index);
-
-            var sprite = _sprites.GetSprite(id, 0, false);
-            var state = StateOf(id);
-            var dim = _gapsMode ? !_fillSelection.Contains(id) : !state.Seen;
-            if (sprite is not null)
-            {
-                if (dim) canvas.SaveLayer(new SKPaint { Color = SKColors.White.WithAlpha(0x55) });
-                var inset = Math.Min(rect.Width, rect.Height) * 0.04f;
-                var box = SKRect.Inflate(rect, -inset, -inset);
-                var scale = Math.Min(box.Width / sprite.Width, box.Height / sprite.Height);
-                var w = sprite.Width * scale;
-                var h = sprite.Height * scale;
-                var dest = new SKRect(rect.MidX - w / 2, rect.MidY - h / 2, rect.MidX + w / 2, rect.MidY + h / 2);
-                using var image = SKImage.FromBitmap(sprite);
-                canvas.DrawImage(image, dest, BoxGridRenderer.SpriteSampling);
-                if (dim) canvas.Restore();
-            }
-            else
-            {
-                _sprites.Warm(id, 0, false, () => MainThread.BeginInvokeOnMainThread(_canvas.InvalidateSurface));
-                PksmPaint.CenterText(canvas, _data.SpeciesNames[id], rect.MidX, rect.MidY, font, SKColors.White, shadow, SKTextAlign.Center);
-            }
-
-            if (_gapsMode)
-            {
-                if (_fillSelection.Contains(id)) DrawCheck(canvas, rect);
-            }
-            else if (state.Caught)
-            {
-                DrawPokeBall(canvas, rect.Right - rect.Width * 0.16f, rect.Bottom - rect.Height * 0.16f, rect.Width * 0.13f);
-            }
-            else if (state.Seen)
-            {
-                using var gold = new SKPaint { Color = UiTokens.SkShinyGold, IsAntialias = true };
-                canvas.DrawCircle(rect.Right - rect.Width * 0.14f, rect.Bottom - rect.Height * 0.16f, rect.Width * 0.07f, gold);
-            }
-
-            if (index == _cursor)
-            {
-                // The app's one grid selection (red corner brackets); the name lives in the
-                // info line below, not squeezed into the cell.
-                PksmPaint.Selection(canvas, rect);
-            }
-        }
-    }
-
-    private static void DrawCheck(SKCanvas canvas, SKRect rect)
-    {
-        using var badge = new SKPaint { Color = Pksm.SelectBorder, IsAntialias = true };
-        using var check = new SKPaint { Color = Pksm.IndigoInk, Style = SKPaintStyle.Stroke, StrokeWidth = 3f, IsAntialias = true, StrokeCap = SKStrokeCap.Round };
-        var size = Math.Min(rect.Width, rect.Height);
-        var cx = rect.Left + size * 0.15f;
-        var cy = rect.Top + size * 0.15f;
-        var r = size * 0.13f;
-        canvas.DrawCircle(cx, cy, r, badge);
-        canvas.DrawLine(cx - r * 0.45f, cy, cx - r * 0.1f, cy + r * 0.4f, check);
-        canvas.DrawLine(cx - r * 0.1f, cy + r * 0.4f, cx + r * 0.5f, cy - r * 0.35f, check);
-    }
-
-    /// <summary>A tiny caught badge: the Poké Ball itself, red top / white base.</summary>
-    private static void DrawPokeBall(SKCanvas canvas, float cx, float cy, float radius)
-    {
-        using var red = new SKPaint { Color = new SKColor(0xE8, 0x48, 0x3C), IsAntialias = true };
-        using var white = new SKPaint { Color = SKColors.White, IsAntialias = true };
-        using var line = new SKPaint { Color = SKColors.White, StrokeWidth = radius * 0.28f, IsAntialias = true };
-        using var rim = new SKPaint { Color = new SKColor(0x2B, 0x2B, 0x2B), Style = SKPaintStyle.Stroke, StrokeWidth = radius * 0.16f, IsAntialias = true };
-        canvas.DrawCircle(cx, cy - radius * 0.02f, radius, red);
-        canvas.DrawRect(new SKRect(cx - radius, cy, cx + radius, cy + radius), white);
-        canvas.DrawLine(cx - radius, cy, cx + radius, cy, line);
-        canvas.DrawCircle(cx, cy, radius, rim);
-        canvas.DrawCircle(cx, cy, radius * 0.3f, line);
-        canvas.DrawCircle(cx, cy, radius * 0.3f, new SKPaint { Color = SKColors.White, IsAntialias = true });
-    }
-
-    private void Touch(object? sender, SKTouchEventArgs args)
-    {
-        if (args.ActionType == SKTouchAction.Pressed) { args.Handled = true; return; }
-        if (args.ActionType != SKTouchAction.Released) return;
-        args.Handled = true;
-        var slot = BoxGridRenderer.SlotFromTouch(_canvas.CanvasSize, args.Location);
-        if (slot < 0 || _page * PageSize + slot >= Count) return;
-        _cursor = slot;
-        Activate(IdAt(_page, slot));
-    }
-
     private async Task CloseAsync()
     {
         if (_staged.Count > 0)
@@ -324,19 +216,6 @@ public sealed class DexEditorPage : IPadPagingHandler
     {
         _router?.Remove(this);
         _host.Remove(_overlay);
-    }
-
-    private void SwitchPage(int delta)
-    {
-        _page = ((_page + delta) % PageCount + PageCount) % PageCount;
-        ClampCursor();
-        RefreshChrome();
-    }
-
-    private void ClampCursor()
-    {
-        var max = Math.Min(PageSize - 1, Count - 1 - _page * PageSize);
-        _cursor = Math.Clamp(_cursor, 0, Math.Max(0, max));
     }
 
     private void SelectAllGaps()
@@ -392,7 +271,8 @@ public sealed class DexEditorPage : IPadPagingHandler
         switch (choice)
         {
             case "How to get this one":
-                await EncounterGallery.ShowForSpeciesAsync(_host, _viewModel, _session, IdAt(_page, _cursor), 0, () => _canvas.InvalidateSurface());
+                if (_grid.Cursor < _viewIds.Count)
+                    await EncounterGallery.ShowForSpeciesAsync(_host, _viewModel, _session, _viewIds[_grid.Cursor], 0, _grid.Refresh);
                 return;
             case "Mark everything seen":
                 foreach (var id in _orderedIds)
@@ -451,23 +331,38 @@ public sealed class DexEditorPage : IPadPagingHandler
             if (state.Caught) caught++;
         }
         _progress.Text = _gapsMode
-            ? $"{_fillSelection.Count} selected · page {_page + 1}/{PageCount}"
-            : $"Seen {seen}/{_states.Count} · caught {caught}/{_states.Count} · {_staged.Count} staged · page {_page + 1}/{PageCount}";
+            ? $"{_fillSelection.Count} selected"
+            : $"Seen {seen}/{_states.Count} · caught {caught}/{_states.Count} · {_staged.Count} staged";
+        RefreshInfo();
+        _grid.Refresh();
+    }
 
-        var absolute = _page * PageSize + _cursor;
-        if (absolute < Count)
-        {
-            var id = IdAt(_page, _cursor);
-            var state = StateOf(id);
-            _cursorInfo.Text = _gapsMode
-                ? $"#{id:000} {_data.SpeciesNames[id]} — {(_fillSelection.Contains(id) ? "selected for generation" : "not selected")}"
-                : $"#{id:000} {_data.SpeciesNames[id]} — {(state.Caught ? "caught" : state.Seen ? "seen" : "unseen")}";
-        }
-        else
-        {
-            _cursorInfo.Text = "";
-        }
-        _canvas.InvalidateSurface();
+    /// <summary>The line under the list: the species under the cursor and its state.</summary>
+    private void RefreshInfo()
+    {
+        if (_grid.Cursor >= _viewIds.Count) { _cursorInfo.Text = ""; return; }
+        var id = _viewIds[_grid.Cursor];
+        var state = StateOf(id);
+        _cursorInfo.Text = _gapsMode
+            ? $"#{id:000} {_data.SpeciesNames[id]} · {(_fillSelection.Contains(id) ? "selected for generation" : "not selected")}"
+            : $"#{id:000} {_data.SpeciesNames[id]} · {(state.Caught ? "caught" : state.Seen ? "seen" : "unseen")}";
+    }
+
+    /// <summary>How the list draws a species: its state, or in gaps mode whether it is picked.</summary>
+    private DexGridView.Look LookOf(int species)
+    {
+        var state = StateOf(species);
+        return _gapsMode
+            ? new DexGridView.Look(Seen: true, Caught: false, Dimmed: !_fillSelection.Contains(species), Ticked: _fillSelection.Contains(species))
+            : new DexGridView.Look(state.Seen, state.Caught);
+    }
+
+    /// <summary>A generation's caught count, on its chip.</summary>
+    private string? SectionNote(DexRegions.Region region)
+    {
+        if (_gapsMode) return null;
+        var ids = _orderedIds.Where(id => id >= region.First && id <= region.Last).ToList();
+        return ids.Count == 0 ? null : $"{ids.Count(id => StateOf(id).Caught)}/{ids.Count}";
     }
 
     /// <summary>Applies the search to the active list; resets paging and repaints.</summary>
@@ -483,8 +378,8 @@ public sealed class DexEditorPage : IPadPagingHandler
                 || id.ToString() == query)
                 _viewIds.Add(id);
         }
-        _page = 0;
-        _cursor = 0;
+        _grid.Show(_viewIds, LookOf, SectionNote);
+        _grid.SetCursor(0);
         RefreshChrome();
     }
 
@@ -493,22 +388,15 @@ public sealed class DexEditorPage : IPadPagingHandler
         if (!_loaded) return true;
         switch (button)
         {
-            case PadButton.Up: _cursor -= Columns; ClampCursor(); RefreshChrome(); return true;
-            case PadButton.Down: _cursor += Columns; ClampCursor(); RefreshChrome(); return true;
-            case PadButton.Left:
-                if (_cursor % Columns == 0) { SwitchPage(-1); return true; }
-                _cursor--; RefreshChrome(); return true;
-            case PadButton.Right:
-                if (_cursor % Columns == Columns - 1) { SwitchPage(1); return true; }
-                _cursor++; ClampCursor(); RefreshChrome(); return true;
-            case PadButton.L: SwitchPage(-1); return true;
-            case PadButton.R: SwitchPage(1); return true;
+            case PadButton.Up: _grid.Move(0, -1); return true;
+            case PadButton.Down: _grid.Move(0, 1); return true;
+            case PadButton.Left: _grid.Move(-1, 0); return true;
+            case PadButton.Right: _grid.Move(1, 0); return true;
+            case PadButton.L: _grid.JumpSection(-1); return true;
+            case PadButton.R: _grid.JumpSection(1); return true;
             case PadButton.A:
-            {
-                var absolute = _page * PageSize + _cursor;
-                if (absolute < Count) Activate(IdAt(_page, _cursor));
+                if (_grid.Cursor < _viewIds.Count) Activate(_viewIds[_grid.Cursor]);
                 return true;
-            }
             case PadButton.B: _ = CloseAsync(); return true;
             case PadButton.X:
             case PadButton.Start: _ = ShowActionsAsync(); return true;
