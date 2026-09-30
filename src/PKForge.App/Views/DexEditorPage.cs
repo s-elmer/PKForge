@@ -33,6 +33,8 @@ public sealed class DexEditorPage : IPadPagingHandler
     private readonly List<int> _orderedIds = [];
     private readonly List<int> _viewIds = [];
     private readonly DexGridView _grid;
+    private readonly SecondScreenState? _secondState;
+    private readonly SecondScreenClaim? _secondClaim;
     private readonly Label _title;
     private readonly Label _progress;
     private readonly Label _cursorInfo;
@@ -70,7 +72,14 @@ public sealed class DexEditorPage : IPadPagingHandler
 
         _grid = new DexGridView(sprites) { VerticalOptions = LayoutOptions.Fill };
         _grid.Tapped += index => Activate(_viewIds[index]);
-        _grid.CursorChanged += _ => RefreshInfo();
+        // The second screen shows the Pokédex page of the species under the cursor.
+        _secondState = IPlatformApplication.Current?.Services.GetService<SecondScreenState>();
+        _secondClaim = _secondState?.Routes.OpenOverlay(SecondScreenOwner.Pokedex);
+        _grid.CursorChanged += index =>
+        {
+            RefreshInfo();
+            if (_secondState is not null && index < _viewIds.Count) _secondState.PreviewSpecies = _viewIds[index];
+        };
 
         View hints = Kit.WindowHints(
             ("A", "Cycle", () => OnPadButton(PadButton.A)),
@@ -214,6 +223,8 @@ public sealed class DexEditorPage : IPadPagingHandler
 
     private void TearDown()
     {
+        _secondClaim?.Release();
+        if (_secondState is not null) _secondState.PreviewSpecies = null;
         _router?.Remove(this);
         _host.Remove(_overlay);
     }
