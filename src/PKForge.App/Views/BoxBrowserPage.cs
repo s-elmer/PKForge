@@ -88,7 +88,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
 
         // The box header rides above the well: the slanted name banner between two chevrons.
         // Touch mirrors the games: the chevrons page the boxes, the name opens the box manager.
-        _boxBar = new SKCanvasView { HeightRequest = 36, Margin = new Thickness(0, 0, 0, 14) };
+        _boxBar = new SKCanvasView { HeightRequest = Design(HeaderDesignHeight), Margin = new Thickness(0, 0, 0, Design(28)) };
         _boxBar.PaintSurface += PaintBoxBar;
         var boxBarTap = new TapGestureRecognizer();
         boxBarTap.Tapped += (_, args) => TapBoxBar(args.GetPosition(_boxBar)?.X ?? _boxBar.Width / 2);
@@ -118,9 +118,9 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         // DS chrome around the box grid + editor.
         _storageContent = new Grid
         {
-            Padding = new Thickness(12, 10),
-            ColumnSpacing = 12,
-            ColumnDefinitions = [new(GridLength.Star), new(new GridLength(330))],
+            Padding = new Thickness(Design(48), Design(32), Design(28), Design(34)),
+            ColumnSpacing = PanelSpacing,
+            ColumnDefinitions = [new(new GridLength(1072, GridUnitType.Star)), new(PanelWidth)],
             Children = { screen, _sidePanel },
         };
         Grid.SetColumn(_sidePanel, 1);
@@ -476,31 +476,12 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
     }
 
 
+    // The box and the editor panel split the width as the mockup does: 1072 to 740.
+    private static readonly GridLength PanelWidth = new(740, GridUnitType.Star);
+    private static readonly double PanelSpacing = Design(32);
+
     private View BuildSidePanel()
     {
-        // The maroon header strip carries the selected mon's name (the Gen-5 section header).
-        var header = (Border)Kit.HeaderBar("Pokémon");
-        var headerLabel = (Label)header.Content!;
-        headerLabel.SetBinding(Label.TextProperty, new Binding(nameof(BoxBrowserViewModel.Selected), converter: new MonHeaderConverter()));
-
-
-        // Box paging beside the header (the box-name bar above the grid shows the number).
-        var previous = Kit.MiniCapsule("<", UiTokens.Ink0);
-        previous.HeightRequest = 32;
-        previous.Clicked += (_, _) => _viewModel.PreviousBox();
-        var next = Kit.MiniCapsule(">", UiTokens.Ink0);
-        next.HeightRequest = 32;
-        next.Clicked += (_, _) => _viewModel.NextBox();
-
-        var headerRow = new Grid
-        {
-            ColumnSpacing = 8,
-            ColumnDefinitions = [new(GridLength.Star), new(GridLength.Auto), new(GridLength.Auto)],
-            Children = { header, previous, next },
-        };
-        Grid.SetColumn(previous, 1);
-        Grid.SetColumn(next, 2);
-
         // Idle card until a Pokémon is selected; the editor replaces it.
         var idle = new VerticalStackLayout
         {
@@ -531,16 +512,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         };
         SwapPanels();
 
-        var body = new Grid { Children = { idle, editor } };
-
-        var layout = new Grid
-        {
-            RowSpacing = 8,
-            RowDefinitions = [new(GridLength.Auto), new(GridLength.Star)],
-            Children = { headerRow, body },
-        };
-        Grid.SetRow(body, 1);
-        return Kit.DevicePanel(layout, padding: 10);
+        return EditorShell(new Grid { Children = { idle, editor } });
     }
 
     private void EnterEditorFocusMode()
@@ -614,6 +586,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
                     break;
                 case Button button:
                     Kit.SetButtonFocus(button, false, target.OriginalBackground, target.OriginalTextColor);
+                    if (target.OriginalBorder is not null) button.BorderColor = target.OriginalBorder;
                     break;
             }
         }
@@ -638,7 +611,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
 
     private sealed record EditorFocusTarget(View View, string Caption, Func<Task> Activate,
         string? NumericBindingPath = null, Color? OriginalBackground = null, Color? OriginalTextColor = null,
-        EditorFocusNeighbors? Neighbors = null);
+        EditorFocusNeighbors? Neighbors = null, Color? OriginalBorder = null);
 
     private sealed record EditorFocusNeighbors(int Left, int Right, int Up, int Down);
 
@@ -827,8 +800,8 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         _boxNeighbors.IsVisible = false;
         _canvas.EnableTouchEvents = true;
         _sidePanel.IsVisible = true;
-        _storageContent.ColumnDefinitions[1].Width = new GridLength(330);
-        _storageContent.ColumnSpacing = 12;
+        _storageContent.ColumnDefinitions[1].Width = PanelWidth;
+        _storageContent.ColumnSpacing = PanelSpacing;
         _viewModel.SelectedSlot = _slotBeforeBoxManage;
         if (_viewModel.SelectMode) _viewModel.Status = $"Multi-select - {_viewModel.MarkedCount} marked";
         else ShowReady();
@@ -4247,34 +4220,6 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         EditorFocusTargets = [];
         _editorFocusIndex = 0;
 
-        var legality = new Button
-        {
-            Text = "Illegal - view report",
-            TextColor = UiTokens.Ink0,
-            BackgroundColor = UiTokens.Bad,
-            FontFamily = DsChrome.PixelFont,
-            FontSize = UiTokens.TextSmall,
-            HeightRequest = 34,
-            CornerRadius = 6,
-            IsVisible = false,
-        };
-        legality.Clicked += async (_, _) =>
-        {
-            var detail = string.IsNullOrWhiteSpace(_viewModel.LegalityText) ? "No legality details were reported." : _viewModel.LegalityText;
-            await ShowLegalityReportAsync(detail);
-        };
-
-        void UpdateLegalityAction()
-        {
-            legality.IsVisible = _viewModel.LegalityBadge == "✗";
-        }
-        _viewModel.PropertyChanged += (_, args) =>
-        {
-            if (args.PropertyName is nameof(BoxBrowserViewModel.LegalityBadge))
-                UpdateLegalityAction();
-        };
-        UpdateLegalityAction();
-
         var data = IPlatformApplication.Current!.Services.GetRequiredService<IGameDataService>();
 
         View FocusBorder(View inner, string caption, Func<Task> activate, string? numericBindingPath = null)
@@ -4288,7 +4233,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         Button FocusButton(Button button, string caption)
         {
             EditorFocusTargets = [.. EditorFocusTargets, new EditorFocusTarget(button, caption, () => { button.SendClicked(); return Task.CompletedTask; },
-                OriginalBackground: button.BackgroundColor, OriginalTextColor: button.TextColor)];
+                OriginalBackground: button.BackgroundColor, OriginalTextColor: button.TextColor, OriginalBorder: button.BorderColor)];
             return button;
         }
 
@@ -4298,7 +4243,6 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             var (species, form) = PendingSpeciesForm();
             return InfoPickers.AbilityItems(data, _sessionsFor(), species, form);
         }
-        List<PickItem> MoveItems() => AllItems(data.MoveNames, includeZero: true, zeroLabel: "(none)");
         Task OpenMove(string caption, string vmProperty) => OpenMovePickerAsync(data, caption, vmProperty);
         Task OpenItem() => OpenHeldItemPickerAsync(data);
 
@@ -4307,14 +4251,14 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         View? otRow = null;
 
         var species = FocusBorder(NamedPicker("SPECIES", nameof(BoxBrowserViewModel.EditSpecies), data.SpeciesNames, null,
-            openPokedex: true, shaded: false), "Species", async () =>
+            openPokedex: true, shaded: true), "Species", async () =>
         {
             var session = _sessionsFor();
             if (session is null) return;
             var picked = await PokedexPicker.ShowAsync(_hostGrid, data, session);
             if (picked is not null) SetVmString(nameof(BoxBrowserViewModel.EditSpecies), picked.Id.ToString());
         });
-        var nickname = FocusBorder(FieldRow("Nickname", nameof(BoxBrowserViewModel.EditNickname), shaded: true), "NICKNAME", () =>
+        var nickname = FocusBorder(FieldRow("Nickname", nameof(BoxBrowserViewModel.EditNickname), shaded: false), "NICKNAME", () =>
         {
             if (nicknameRow is not null) FocusEntry(nicknameRow);
             return Task.CompletedTask;
@@ -4344,57 +4288,48 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             AbilityItems, shaded: false), "ABILITY", async () => await OpenNamedPickerAsync("ABILITY", nameof(BoxBrowserViewModel.EditAbility), AbilityItems));
         var item = FocusBorder(NamedPicker("HELD ITEM", nameof(BoxBrowserViewModel.EditHeldItem), new LiveNames(() => SaveItemNames(data)),
             () => ItemsWithIcons(SaveItemNames(data)), shaded: true, open: OpenItem), "Held item", OpenItem);
-        var move1 = FocusBorder(NamedPicker("MOVE 1", nameof(BoxBrowserViewModel.EditMove1), data.MoveNames, MoveItems, shaded: false,
-            open: () => OpenMove("MOVE 1", nameof(BoxBrowserViewModel.EditMove1))), "MOVE 1", () => OpenMove("MOVE 1", nameof(BoxBrowserViewModel.EditMove1)));
-        var move2 = FocusBorder(NamedPicker("MOVE 2", nameof(BoxBrowserViewModel.EditMove2), data.MoveNames, MoveItems, shaded: true,
-            open: () => OpenMove("MOVE 2", nameof(BoxBrowserViewModel.EditMove2))), "MOVE 2", () => OpenMove("MOVE 2", nameof(BoxBrowserViewModel.EditMove2)));
-        var move3 = FocusBorder(NamedPicker("MOVE 3", nameof(BoxBrowserViewModel.EditMove3), data.MoveNames, MoveItems, shaded: false,
-            open: () => OpenMove("MOVE 3", nameof(BoxBrowserViewModel.EditMove3))), "MOVE 3", () => OpenMove("MOVE 3", nameof(BoxBrowserViewModel.EditMove3)));
-        var move4 = FocusBorder(NamedPicker("MOVE 4", nameof(BoxBrowserViewModel.EditMove4), data.MoveNames, MoveItems, shaded: true,
-            open: () => OpenMove("MOVE 4", nameof(BoxBrowserViewModel.EditMove4))), "MOVE 4", () => OpenMove("MOVE 4", nameof(BoxBrowserViewModel.EditMove4)));
-        var stats = StatsRow("STATS", nameof(BoxBrowserViewModel.EditStats), shaded: true);
-        var ivs = FocusBorder(StatsField("IVS", nameof(BoxBrowserViewModel.EditIvs), () => _sessionsFor()?.GetTrainingCaps().IvMax ?? 31, shaded: false), "IVS", async () => await OpenStatsEditorAsync("IVS", nameof(BoxBrowserViewModel.EditIvs), () => _sessionsFor()?.GetTrainingCaps().IvMax ?? 31));
-        var evs = FocusBorder(StatsField("EVS", nameof(BoxBrowserViewModel.EditEvs), () => _sessionsFor()?.GetTrainingCaps().EvMax ?? 252, shaded: true), "EVS", async () => await OpenStatsEditorAsync("EVS", nameof(BoxBrowserViewModel.EditEvs), () => _sessionsFor()?.GetTrainingCaps().EvMax ?? 252));
-        var ball = FocusBorder(NamedPicker("BALL", nameof(BoxBrowserViewModel.EditBall), data.BallNames, BallItems, shaded: false), "BALL", async () => await OpenNamedPickerAsync("BALL", nameof(BoxBrowserViewModel.EditBall), BallItems));
-        var genderValue = Kit.BlueprintValue(13);
-        var genderChevron = new Label
+        Border Move(int index, bool dark)
         {
-            Text = "›", FontFamily = "Rounded", TextColor = UiTokens.InkSoft,
-            FontSize = 16, VerticalTextAlignment = TextAlignment.Center,
-        };
-        var gender = FocusBorder(RowChrome("GENDER", genderValue, false, genderChevron), "GENDER", async () => await OpenGenderPickerAsync());
-        var genderTap = new TapGestureRecognizer();
-        genderTap.Tapped += async (_, _) => await OpenGenderPickerAsync();
-        gender.GestureRecognizers.Add(genderTap);
-        genderValue.Text = _viewModel.EditGender switch { "0" => "Male", "1" => "Female", _ => "Genderless" };
-        _viewModel.PropertyChanged += (_, args) =>
+            var property = $"EditMove{index + 1}";
+            var caption = $"MOVE {index + 1}";
+            Task Open() => OpenMove(caption, property);
+            return (Border)FocusBorder(MoveRow(index, property, data, dark, Open), caption, Open);
+        }
+        var move1 = Move(0, dark: true);
+        var move2 = Move(1, dark: false);
+        var move3 = Move(2, dark: true);
+        var move4 = Move(3, dark: false);
+        async Task EditTraining(string stat)
         {
-            if (args.PropertyName is nameof(BoxBrowserViewModel.EditGender) or nameof(BoxBrowserViewModel.Selected))
-                genderValue.Text = _viewModel.EditGender switch { "0" => "Male", "1" => "Female", _ => "Genderless" };
-        };
-        var ot = FocusBorder(FieldRow("OT", nameof(BoxBrowserViewModel.EditOt), shaded: true), "OT", () =>
+            var caps = _sessionsFor()?.GetTrainingCaps();
+            var classic = caps?.IvMax == 15;
+            var ivs = classic ? "Edit DVs" : "Edit IVs";
+            var evs = classic ? "Edit stat experience" : "Edit EVs";
+            var choice = await PadMenu.ShowAsync(_hostGrid, stat, null, ivs, evs);
+            if (choice == ivs) await OpenStatsEditorAsync("IVS", nameof(BoxBrowserViewModel.EditIvs), () => _sessionsFor()?.GetTrainingCaps().IvMax ?? 31);
+            else if (choice == evs) await OpenStatsEditorAsync("EVS", nameof(BoxBrowserViewModel.EditEvs), () => _sessionsFor()?.GetTrainingCaps().EvMax ?? 252);
+        }
+        var statLines = Enumerable.Range(0, 6)
+            .Select(i => FocusBorder(StatLine(i, i % 2 == 0, EditTraining), StatNames[i], () => EditTraining(StatNames[i])))
+            .ToArray();
+        var ball = FocusBorder(NamedPicker("BALL", nameof(BoxBrowserViewModel.EditBall), data.BallNames, BallItems, shaded: true), "BALL", async () => await OpenNamedPickerAsync("BALL", nameof(BoxBrowserViewModel.EditBall), BallItems));
+        var ot = FocusBorder(FieldRow("OT", nameof(BoxBrowserViewModel.EditOt), shaded: false), "OT", () =>
         {
             if (otRow is not null) FocusEntry(otRow);
             return Task.CompletedTask;
         });
         otRow = ot;
-        var shinyToggle = new Switch { OnColor = UiTokens.Gold };
-        shinyToggle.SetBinding(Switch.IsToggledProperty, nameof(BoxBrowserViewModel.EditShiny));
-        var shiny = FocusBorder(Striped(new HorizontalStackLayout
+        // Gender and shiny sit in one band, right under the nickname.
+        var (genderShiny, genderHalf, shinyHalf) = GenderShinyRow();
+        FocusBorder(genderHalf, "GENDER", OpenGenderPickerAsync);
+        FocusBorder(shinyHalf, "Shiny", () =>
         {
-            Spacing = 8,
-            Children =
-            {
-                new Label { Text = "Shiny", FontSize = UiTokens.TextSmall, TextColor = UiTokens.InkSoft, WidthRequest = 66, VerticalTextAlignment = TextAlignment.Center },
-                shinyToggle,
-            },
-        }, false), "Shiny", () =>
-        {
-            shinyToggle.IsToggled = !shinyToggle.IsToggled;
+            _viewModel.EditShiny = !_viewModel.EditShiny;
             return Task.CompletedTask;
         });
+        var legalityLine = FocusBorder(LegalityLine(), "LEGALITY", OpenLegalityReportAsync);
 
-        var legalize = FocusButton(Kit.Capsule("Legalize", UiTokens.Green, icon: "fix"), "LEGALIZE");
+        var legalize = FocusButton(EditorTool("Legalize"), "LEGALIZE");
         legalize.Clicked += async (_, _) =>
         {
             var slot = _viewModel.SelectedSlot;
@@ -4408,7 +4343,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             finally { overlay.Close(); }
         };
 
-        var makeMine = FocusButton(Kit.Capsule("Make mine", UiTokens.Gold, icon: "profile"), "MAKE MINE");
+        var makeMine = FocusButton(EditorTool("Make mine"), "MAKE MINE");
         makeMine.Clicked += async (_, _) =>
         {
             var slot = _viewModel.SelectedSlot;
@@ -4417,38 +4352,52 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             _canvas.InvalidateSurface();
         };
 
-        var showdown = FocusButton(Kit.Capsule("Showdown", UiTokens.Ink1, icon: "script"), "SHOWDOWN");
+        var showdown = FocusButton(EditorTool("Showdown"), "SHOWDOWN");
         showdown.Clicked += async (_, _) => { if (_viewModel.SelectedSlot >= 0) await ShowShowdownAsync(_viewModel.SelectedSlot); };
-        var exportPk = FocusButton(Kit.Capsule("Export .PK", UiTokens.Ink1, icon: "export"), "EXPORT .PK");
+        var exportPk = FocusButton(EditorTool("Export .PK"), "EXPORT .PK");
         exportPk.Clicked += async (_, _) => { if (_viewModel.SelectedSlot >= 0) await ExportSlotAsync(_viewModel.SelectedSlot); };
-        var qr = FocusButton(Kit.Capsule("QR", UiTokens.Ink1, icon: "qr"), "QR");
+        var qr = FocusButton(EditorTool("QR"), "QR");
         qr.Clicked += async (_, _) => { if (_viewModel.SelectedSlot >= 0) await ShowQrAsync(_viewModel.SelectedSlot); };
 
-        var save = FocusButton(Kit.Capsule("Save changes", UiTokens.Green, primary: true, icon: "confirm"), "SAVE CHANGES");
-        save.Margin = new Thickness(0, 8, 0, 0);
+        var save = FocusButton(EditorTool("Save changes", primary: true), "SAVE CHANGES");
+        save.Margin = new Thickness(Design(28), Design(8), Design(28), Design(8));
         save.SetBinding(Button.CommandProperty, nameof(BoxBrowserViewModel.SaveEditCommand));
 
-        var met = FocusButton(Kit.Capsule("Met / origin", UiTokens.Cyan, icon: "map"), "MET / ORIGIN");
+        var met = FocusButton(EditorTool("Met / origin"), "MET / ORIGIN");
         met.Clicked += async (_, _) => await RunSubEditorAsync(MetOriginEditor.ShowAsync, "Met / origin updated");
-        var moveDetails = FocusButton(Kit.Capsule("Move details", UiTokens.Cyan, icon: "moves"), "MOVE DETAILS");
+        var moveDetails = FocusButton(EditorTool("Move details"), "MOVE DETAILS");
         moveDetails.Clicked += async (_, _) => await RunSubEditorAsync(MoveDetailsEditor.ShowAsync, "Move details updated");
-        var moveShop = FocusButton(Kit.Capsule("Move shop", UiTokens.Cyan, icon: "item"), "MOVE SHOP");
+        var moveShop = FocusButton(EditorTool("Move shop"), "MOVE SHOP");
         moveShop.Clicked += async (_, _) => await RunSubEditorAsync(MoveShopEditor.ShowAsync, "Move Shop updated");
-        var potential = FocusButton(Kit.Capsule("Potential", UiTokens.Cyan, icon: "stats"), "POTENTIAL");
+        var potential = FocusButton(EditorTool("Potential"), "POTENTIAL");
         potential.Clicked += async (_, _) => await RunSubEditorAsync(PotentialEditor.ShowAsync, "Potential updated");
-        var cosmetics = FocusButton(Kit.Capsule("Cosmetics", UiTokens.Cyan, icon: "fashion"), "COSMETICS");
+        var cosmetics = FocusButton(EditorTool("Cosmetics"), "COSMETICS");
         cosmetics.Clicked += async (_, _) => await RunSubEditorAsync(CosmeticsEditor.ShowAsync, "Cosmetics updated");
-        var awards = FocusButton(Kit.Capsule("Awards", UiTokens.Cyan, icon: "ribbons"), "AWARDS");
+        var awards = FocusButton(EditorTool("Awards"), "AWARDS");
         awards.Clicked += async (_, _) => await RunSubEditorAsync(AwardsEditor.ShowAsync, "Awards updated");
-        var ribbonAlbum = FocusButton(Kit.Capsule("Ribbon album", UiTokens.Cyan, icon: "ribbons"), "RIBBON ALBUM");
+        var ribbonAlbum = FocusButton(EditorTool("Ribbon album"), "RIBBON ALBUM");
         ribbonAlbum.Clicked += async (_, _) => await RunSubEditorAsync(
             (host, session, box, slot) => ShowRibbonAlbumAsync(host, session, box, slot), "Ribbon album updated");
-        var formShiny = FocusButton(Kit.Capsule("Form & shiny", UiTokens.Cyan, icon: "shiny"), "FORM & SHINY");
+        var formShiny = FocusButton(EditorTool("Form & shiny"), "FORM & SHINY");
         formShiny.Clicked += async (_, _) => await RunSubEditorAsync(MonFieldsEditor.FormAndShinyAsync, "Form & shiny updated");
-        var trainers = FocusButton(Kit.Capsule("Trainers", UiTokens.Cyan, icon: "trainer"), "TRAINERS");
+        var trainers = FocusButton(EditorTool("Trainers"), "TRAINERS");
         trainers.Clicked += async (_, _) => await RunSubEditorAsync(MonFieldsEditor.TrainersAsync, "Trainers updated");
-        var techRecords = FocusButton(Kit.Capsule("Tech records", UiTokens.Cyan, icon: "moves"), "TECH RECORDS");
+        var techRecords = FocusButton(EditorTool("Tech records"), "TECH RECORDS");
         techRecords.Clicked += async (_, _) => await RunSubEditorAsync(MonFieldsEditor.TechRecordsAsync, "Tech records updated");
+
+        // The D-pad walks the stops in the order the panel shows them.
+        string[] visualOrder =
+        [
+            "Species", "NICKNAME", "GENDER", "Shiny", "LEVEL",
+            "Nature", "ABILITY", "Held item", "FRIENDSHIP", "BALL", "OT",
+            "MOVE 1", "MOVE 2", "MOVE 3", "MOVE 4",
+            .. StatNames,
+            "LEGALITY", "SAVE CHANGES",
+        ];
+        EditorFocusTargets = [.. EditorFocusTargets
+            .Select((target, created) => (target, created))
+            .OrderBy(t => Array.IndexOf(visualOrder, t.target.Caption) is var at and >= 0 ? at : visualOrder.Length + t.created)
+            .Select(t => t.target)];
 
         var lastFieldIndex = Array.FindLastIndex(EditorFocusTargets, target => target.Neighbors is null && target.View is Border);
         int IndexOfCaption(string caption) => Array.FindIndex(EditorFocusTargets, target => target.Caption == caption);
@@ -4487,18 +4436,14 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         var monActions = new Grid
         {
             ColumnDefinitions = [new(GridLength.Star), new(GridLength.Star)],
-            ColumnSpacing = 6,
-            RowSpacing = 6,
-            Margin = new Thickness(0, 2, 0, 0),
+            ColumnSpacing = Design(20),
+            RowSpacing = Design(16),
+            Margin = new Thickness(Design(28), Design(4), Design(28), 0),
         };
         var actionButtons = new[] { legalize, makeMine, showdown, exportPk, qr, met, moveDetails, moveShop, potential, cosmetics, awards, ribbonAlbum, formShiny, trainers, techRecords };
         for (var i = 0; i < actionButtons.Length; i++)
         {
             var button = actionButtons[i];
-            button.FontSize = UiTokens.TextSmall;
-            button.Padding = new Thickness(8, 6);
-            button.HeightRequest = 36;
-            button.LineBreakMode = LineBreakMode.TailTruncation;
             if (i % ActionColumns == 0) monActions.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             monActions.Add(button, i % ActionColumns, i / ActionColumns);
         }
@@ -4515,20 +4460,26 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             IsVisible = HardcoreMode.IsOn,
         };
 
-        return new VerticalStackLayout
+        var panel = new VerticalStackLayout
         {
-            Spacing = 6,
             Children =
             {
                 hardcoreNote,
-                legality,
-                species, nickname, level, LevelInfoCard(), nature, ability, item, friendship,
+                species, nickname, genderShiny, level, LevelInfoCard(),
+                EditorSection("PKMN Info"),
+                nature, ability, item, friendship, ball, ot,
+                EditorSection("PKMN Moves"),
                 move1, move2, move3, move4,
-                stats, ivs, evs, ball, gender, ot, shiny,
-                save,
-                monActions,
+                EditorSection("Stats"),
             },
         };
+        foreach (var line in statLines) panel.Children.Add(line);
+        panel.Children.Add(EditorSection("Legality"));
+        panel.Children.Add(legalityLine);
+        panel.Children.Add(EditorSection("Tools"));
+        panel.Children.Add(save);
+        panel.Children.Add(monActions);
+        return panel;
     }
 
     private Task ShowLegalityReportAsync(string detail)
@@ -4939,11 +4890,12 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
     /// </summary>
     private View LevelInfoCard()
     {
-        var exp = InfoKit.DetailLine();
-        exp.TextColor = UiTokens.Ink1;
+        // The EXP line sits in the header beside the species tab; the card appears only for a
+        // pending level change (the stats it would give) or a level below the met level.
         var warn = InfoKit.Note(tone: InfoKit.NoteTone.Bad);
         var grid = new InfoKit.StatDeltaGrid { IsVisible = false };
-        var card = InfoKit.Card(exp, grid, warn);
+        var card = InfoKit.Card(grid, warn);
+        card.Margin = new Thickness(Design(28), Design(12));
         card.IsVisible = false;
 
         void Refresh()
@@ -4956,22 +4908,22 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
                 || ParseInt(GetVmString(nameof(BoxBrowserViewModel.EditLevel))) is not { } level)
             {
                 card.IsVisible = false;
+                SetEditorExpLine(null);
                 return;
             }
             LevelInfo? facts;
             try { facts = info.GetLevelInfo(session, _viewModel.BoxIndex, slot, level, PendingOverrides() with { Level = null }); }
             catch (ArgumentException) { facts = null; }
-            if (facts is null) { card.IsVisible = false; return; }
-            card.IsVisible = true;
-            exp.Text = facts.Level >= 100
+            if (facts is null) { card.IsVisible = false; SetEditorExpLine(null); return; }
+            SetEditorExpLine(facts.Level >= 100
                 ? $"EXP {facts.ExpAtLevel:N0} · max level"
-                : $"EXP {facts.ExpAtLevel:N0} at Lv {facts.Level} · {facts.ExpToNext:N0} to Lv {facts.Level + 1}";
-            exp.IsVisible = true;
+                : $"EXP {facts.ExpAtLevel:N0} at Lv {facts.Level}  ·  {facts.ExpToNext:N0} to Lv {facts.Level + 1}");
             var changed = facts.Level != selected.Level && facts.StatsNow.Count == 6 && facts.StatsAtLevel.Count == 6;
             grid.IsVisible = changed;
             if (changed) grid.Show(facts.StatsNow, facts.StatsAtLevel);
             warn.Text = facts.BelowMetLevel ? $"Below its met level ({facts.MetLevel}): this would be illegal." : null;
             warn.IsVisible = facts.BelowMetLevel;
+            card.IsVisible = changed || facts.BelowMetLevel;
         }
 
         _viewModel.PropertyChanged += (_, args) =>
@@ -5029,22 +4981,20 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
     /// <summary>A Kit.Field wrapped in the striped attribute-row plate.</summary>
     private View FieldRow(string caption, string bindingPath, bool shaded)
     {
-        var entry = new Entry
+        var entry = new EditorEntry
         {
-            FontSize = UiTokens.TextBody,
+            FontSize = EditorText,
             FontFamily = DsChrome.PixelFont,
-            TextColor = UiTokens.Ink0,
+            TextColor = EditorValue,
             BackgroundColor = Colors.Transparent,
-            HeightRequest = 34,
+            VerticalTextAlignment = TextAlignment.Center,
+            HeightRequest = EditorRowHeight,
             IsSpellCheckEnabled = false,
             IsTextPredictionEnabled = false,
         };
         entry.SetBinding(Entry.TextProperty, bindingPath);
         return RowChrome(caption, entry, shaded);
     }
-
-    /// <summary>Attribute rows alternate a soft stripe; no border, no card.</summary>
-    private static View Striped(View inner, bool shaded) => Kit.Row(inner, shaded, new Thickness(10, 5));
 
     private Domain.ISaveEngineSession? _sessionsFor() =>
         IPlatformApplication.Current?.Services.GetService<ISaveSessionService>()?.CurrentSession;
@@ -5065,18 +5015,6 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             if (names[id].Length == 0) continue;
             var cached = System.IO.Path.Combine(directory, ItemArt.Slug(names[id]) + ".png");
             items.Add(new PickItem(id, names[id], File.Exists(cached) ? cached : ItemArt.PlaceholderPath()));
-        }
-        return items;
-    }
-
-    private static List<PickItem> AllItems(IReadOnlyList<string> names, bool includeZero, string? zeroLabel = null)
-    {
-        var items = new List<PickItem>(names.Count);
-        for (var id = includeZero ? 0 : 1; id < names.Count; id++)
-        {
-            var name = id == 0 && zeroLabel is not null ? zeroLabel : names[id];
-            if (name.Length > 0)
-                items.Add(new PickItem(id, name));
         }
         return items;
     }
@@ -5115,15 +5053,9 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
     private View NamedPicker(string caption, string vmProperty, IReadOnlyList<string> names, Func<List<PickItem>>? itemsFactory, bool openPokedex = false, bool shaded = false,
         Func<Task>? open = null)
     {
-        var value = Kit.BlueprintValue(UiTokens.TextBody);
+        var value = EditorValueLabel();
         value.SetBinding(Label.TextProperty, new Binding(vmProperty, converter: new IdNameConverter(names)));
-
-        var chevron = new Label
-        {
-            Text = "›", FontFamily = "Rounded", TextColor = UiTokens.InkSoft,
-            FontSize = 16, VerticalTextAlignment = TextAlignment.Center,
-        };
-        var chip = RowChrome(caption, value, shaded, chevron);
+        var chip = RowChrome(caption, value, shaded, EditorChevron());
 
         var tap = new TapGestureRecognizer();
         tap.Tapped += async (_, _) =>
@@ -5152,22 +5084,14 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         return chip;
     }
 
-    /// <summary>One shared row chrome for the side panel: fixed caption column, aligned values.</summary>
+    /// <summary>One shared row for the editor panel: caption column, value, optional trailing mark.</summary>
     private View RowChrome(string caption, View content, bool shaded, View? trailing = null)
     {
         var grid = new Grid
         {
-            ColumnSpacing = 8,
-            ColumnDefinitions = [new(new GridLength(66)), new(GridLength.Star), new(GridLength.Auto)],
-            Children =
-            {
-                new Label
-                {
-                    Text = Kit.Tidy(caption), FontSize = UiTokens.TextSmall,
-                    TextColor = UiTokens.InkSoft, VerticalTextAlignment = TextAlignment.Center, LineBreakMode = LineBreakMode.NoWrap,
-                },
-                content,
-            },
+            ColumnSpacing = Design(16),
+            ColumnDefinitions = [new(new GridLength(Design(214))), new(GridLength.Star), new(GridLength.Auto)],
+            Children = { EditorCaption(caption), content },
         };
         Grid.SetColumn(content, 1);
         if (trailing is not null)
@@ -5175,102 +5099,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             grid.Children.Add(trailing);
             Grid.SetColumn(trailing, 2);
         }
-        // A flat striped row inside the side panel - never a card of its own.
-        var row = Kit.Row(grid, shaded, new Thickness(10, 5));
-        row.MinimumHeightRequest = 36;
-        return row;
-    }
-
-    /// <summary>Read-only computed stats: six labeled cells (HP/ATK/DEF/SPA/SPD/SPE) in two rows.</summary>
-    private View StatsRow(string caption, string vmProperty, bool shaded)
-    {
-        string[] labels = ["HP", "ATK", "DEF", "SPA", "SPD", "SPE"];
-        var grid = new Grid
-        {
-            RowSpacing = 4,
-            ColumnSpacing = 14,
-            RowDefinitions = [new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto)],
-            ColumnDefinitions = [new(GridLength.Star), new(GridLength.Star)],
-        };
-        var converter = new StatCellConverter();
-        for (var i = 0; i < 6; i++)
-        {
-            // Tight fixed columns: icon 14, label 28, value 34 - compact cells that never
-            // clip 3-digit values and read as "HP 384", not "HP .... 384".
-            var cell = new Grid
-            {
-                ColumnSpacing = 4,
-                ColumnDefinitions = [new(new GridLength(14)), new(new GridLength(28)), new(new GridLength(34))],
-                Children =
-                {
-                    StatBadge((byte)i),
-                    new Label
-                    {
-                        Text = labels[i], FontFamily = DsChrome.PixelFont, FontSize = UiTokens.TextSmall, FontAttributes = FontAttributes.Bold,
-                        TextColor = StatColor(i).WithLuminosity(0.28f), VerticalTextAlignment = TextAlignment.Center,
-                    },
-                },
-            };
-            var value = Kit.BlueprintValue(12);
-            value.HorizontalTextAlignment = TextAlignment.Start;
-            value.SetBinding(Label.TextProperty, new Binding(vmProperty, converter: converter, converterParameter: i.ToString()));
-            cell.Children.Add(value);
-            cell.SetColumn(cell.Children[0], 0);
-            cell.SetColumn(cell.Children[1], 1);
-            cell.SetColumn(value, 2);
-            grid.Add(cell);
-            Grid.SetRow(cell, i / 2);
-            Grid.SetColumn(cell, i % 2);
-        }
-        return RowChrome(caption, grid, shaded);
-    }
-
-    /// <summary>Stat identity colors, muted for a light panel (HP red, ATK orange, DEF blue, SPA violet, SPD green, SPE gold).</summary>
-    private static Color StatColor(int stat) => stat switch
-    {
-        0 => Color.FromArgb("#C64B4B"),
-        1 => Color.FromArgb("#C98A3D"),
-        2 => Color.FromArgb("#4E7FB8"),
-        3 => Color.FromArgb("#8A6BB8"),
-        4 => Color.FromArgb("#5D9B62"),
-        _ => Color.FromArgb("#B8A03E"),
-    };
-
-    /// <summary>A 16px drawn pixel badge per stat: heart, sword, shield, spark, leaf, wing.</summary>
-    private static SKCanvasView StatBadge(byte stat)
-    {
-        var view = new SKCanvasView { WidthRequest = 14, HeightRequest = 14, InputTransparent = true, VerticalOptions = LayoutOptions.Center };
-        var color = StatColor(stat).ToSKColor();
-        view.PaintSurface += (_, args) =>
-        {
-            var c = args.Surface.Canvas;
-            c.Clear(SKColors.Transparent);
-            using var p = new SKPaint { Color = color, IsAntialias = false };
-            var w = args.Info.Width / 16f;
-            void Px(int x, int y) => c.DrawRect(x * w, y * w, w + 0.5f, w + 0.5f, p);
-            switch (stat)
-            {
-                case 0: // heart
-                    foreach (var (x, y) in new[] { (4,3),(5,3),(10,3),(11,3),(3,4),(6,4),(9,4),(12,4),(3,5),(6,5),(9,5),(12,5),(4,6),(11,6),(5,7),(10,7),(6,8),(9,8),(7,9),(8,9),(7,4),(8,4),(7,5),(8,5) }) Px(x, y);
-                    break;
-                case 1: // sword (diagonal)
-                    foreach (var (x, y) in new[] { (10,3),(11,3),(11,4),(9,5),(10,5),(8,6),(9,6),(7,7),(8,7),(6,8),(7,8),(5,9),(6,9),(4,10),(5,10),(3,11),(4,11),(6,5),(5,6),(9,3) }) Px(x, y);
-                    break;
-                case 2: // shield
-                    foreach (var (x, y) in new[] { (4,3),(5,3),(6,3),(7,3),(8,3),(9,3),(10,3),(11,3),(4,4),(11,4),(4,5),(11,5),(4,6),(11,6),(5,7),(10,7),(6,8),(9,8),(7,9),(8,9) }) Px(x, y);
-                    break;
-                case 3: // spark
-                    foreach (var (x, y) in new[] { (7,2),(6,4),(8,4),(5,6),(7,6),(9,6),(7,7),(6,8),(8,8),(4,7),(10,7),(7,10),(7,3),(7,9) }) Px(x, y);
-                    break;
-                case 4: // leaf
-                    foreach (var (x, y) in new[] { (8,3),(9,3),(7,4),(10,4),(6,5),(10,5),(6,6),(9,6),(5,7),(8,7),(6,8),(7,8),(5,9),(6,9),(4,10),(5,10) }) Px(x, y);
-                    break;
-                default: // wing / speed streak
-                    foreach (var (x, y) in new[] { (3,4),(4,4),(5,4),(6,4),(5,5),(7,5),(6,6),(8,6),(7,7),(9,7),(8,8),(10,8),(9,9),(11,9),(4,7),(5,8),(3,6) }) Px(x, y);
-                    break;
-            }
-        };
-        return view;
+        return EditorBand(grid, dark: shaded);
     }
 
     /// <summary>Picks one stat out of the space-separated EditStats string by index.</summary>
@@ -5288,45 +5117,11 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             throw new NotSupportedException();
     }
 
-    /// <summary>Read-only stat row with an explicit EDIT button for manual (expert) input.</summary>
-    private View StatsField(string caption, string vmProperty, Func<int> max, bool shaded = false)
-    {
-        var value = Kit.BlueprintValue(12);
-        value.SetBinding(Label.TextProperty, vmProperty);
-
-        var edit = Kit.Capsule("Edit", UiTokens.Blue);
-        edit.FontSize = UiTokens.TextSmall;
-        edit.Padding = new Thickness(10, 2);
-        edit.MinimumHeightRequest = 28;
-        edit.HeightRequest = 28;
-        edit.Clicked += async (_, _) => await OpenStatsEditorAsync(caption, vmProperty, max);
-
-        // One row, no wrapper: the old extra border made a card inside a card.
-        var row = RowChrome(caption, value, shaded, edit);
-        Grid.SetColumn(value, 1);
-        Grid.SetColumn(edit, 2);
-        return row;
-    }
-
     private string? GetVmString(string property) =>
         typeof(BoxBrowserViewModel).GetProperty(property)?.GetValue(_viewModel) as string;
 
     private void SetVmString(string property, string value) =>
         typeof(BoxBrowserViewModel).GetProperty(property)?.SetValue(_viewModel, value);
-
-    /// <summary>The editor header line: "Nickname   Lv.X" for the selected mon.</summary>
-    private sealed class MonHeaderConverter : IValueConverter
-    {
-        public object Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture)
-        {
-            if (value is EntityDetail d && !d.IsEmpty)
-                return $"{(string.IsNullOrEmpty(d.Nickname) ? $"#{d.Species}" : d.Nickname)}   Lv.{d.Level}";
-            return "Pokémon";
-        }
-
-        public object ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) =>
-            throw new NotSupportedException();
-    }
 
     /// <summary>Shows the id's display name; ids without a name fall back to the raw number.</summary>
     /// <summary>

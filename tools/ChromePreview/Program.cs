@@ -23,6 +23,13 @@ if (args.Length > 0 && args[0] == "storage")
     StoragePreview.Render(root, args.Length > 1 ? args[1] : Path.Combine(root, "tools/ChromePreview/out/storage_box.png"));
     return;
 }
+if (args.Length > 0 && args[0] == "editor")
+{
+    // The Pokémon editor panel in the designer's direction (EditorPaint).
+    // Usage: dotnet run --project tools/ChromePreview -- editor [output.png]
+    EditorPreview.Render(root, args.Length > 1 ? args[1] : Path.Combine(root, "tools/ChromePreview/out/editor_panel.png"));
+    return;
+}
 var art = new PksmArt();
 foreach (var f in Directory.GetFiles(Path.Combine(root, "src/PKForge.App/Resources/UI/pksm"), "*.png"))
     art.Supply(Path.GetFileName(f), File.ReadAllBytes(f));
