@@ -269,14 +269,15 @@ public sealed partial class BoxBrowserPage
                 plate.FontSize = Design(24);
             }
             pp.Text = "";
-            if (facts is null || session is null || _viewModel.SelectedSlot < 0) return;
+            // An empty slot has no moves to read (the edit fields still hold the last Pokémon's).
+            if (facts is null || session is null || _viewModel.SelectedSlot < 0 || _viewModel.Selected is not { IsEmpty: false }) return;
             MoveSlotDetail? stored = null;
             try
             {
                 var moves = session.GetMoveDetails(_viewModel.BoxIndex, _viewModel.SelectedSlot).Moves;
                 if (index < moves.Count && moves[index].Move == id) stored = moves[index];
             }
-            catch (ArgumentException) { }
+            catch (Exception error) when (error is ArgumentException or InvalidOperationException) { }
             pp.Text = stored is { } s ? $"PP {s.PP}/{s.MaxPP}" : $"PP {facts.PP}";
         }
         _viewModel.PropertyChanged += (_, args) =>
