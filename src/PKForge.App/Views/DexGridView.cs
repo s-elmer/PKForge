@@ -286,13 +286,13 @@ public sealed class DexGridView : SKCanvasView
         }
         c.Restore();
 
-        if (MaxScroll > 0)
+        if (MaxScroll > 0 && _scroller.Visibility is var shown and > 0)
         {
             var held = _scroller.HoldingThumb;
             var thumbRect = _scroller.Thumb();
             if (held) thumbRect = new SKRect(thumbRect.Left - 6 * _unit, thumbRect.Top, thumbRect.Right, thumbRect.Bottom);
-            using var track = new SKPaint { Color = StoragePaint.Well.WithAlpha(0xB0), IsAntialias = true };
-            using var thumb = new SKPaint { Color = held ? EditorPaint.Cyan : SKColors.White.WithAlpha(0x80), IsAntialias = true };
+            using var track = new SKPaint { Color = StoragePaint.Well.WithAlpha((byte)(0xB0 * shown)), IsAntialias = true };
+            using var thumb = new SKPaint { Color = (held ? EditorPaint.Cyan : SKColors.White).WithAlpha((byte)((held ? 0xFF : 0x80) * shown)), IsAntialias = true };
             c.DrawRoundRect(Track(), 5 * _unit, 5 * _unit, track);
             c.DrawRoundRect(thumbRect, 5 * _unit, 5 * _unit, thumb);
         }

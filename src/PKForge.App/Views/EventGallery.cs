@@ -779,13 +779,13 @@ public static class EventGallery
 
             // Scrollbar: a thumb showing where in the album we are, and a handle to drag through it.
             _track = new SKRect(panel.Right - 10, panel.Top + 6, panel.Right - 4, panel.Bottom - 6);
-            if (_contentH > _viewH)
+            if (_contentH > _viewH && _scroller.Visibility is var shown and > 0)
             {
                 var held = _scroller.HoldingThumb;
                 var thumbRect = _scroller.Thumb();
                 if (held) thumbRect = new SKRect(thumbRect.Left - 4, thumbRect.Top, thumbRect.Right, thumbRect.Bottom);
-                using var trackPaint = new SKPaint { Color = Pksm.LogoVoid.WithAlpha(0x90), IsAntialias = true };
-                using var thumb = new SKPaint { Color = Pksm.LogoCyan.WithAlpha(held ? (byte)0xFF : (byte)0xC0), IsAntialias = true };
+                using var trackPaint = new SKPaint { Color = Pksm.LogoVoid.WithAlpha((byte)(0x90 * shown)), IsAntialias = true };
+                using var thumb = new SKPaint { Color = Pksm.LogoCyan.WithAlpha((byte)((held ? 0xFF : 0xC0) * shown)), IsAntialias = true };
                 c.DrawRoundRect(_track, 3, 3, trackPaint);
                 c.DrawRoundRect(thumbRect, 3, 3, thumb);
             }

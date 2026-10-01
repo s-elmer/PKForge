@@ -8,10 +8,14 @@ namespace PKForge.App.Views;
 /// down, and a scroll thumb you can grab (or tap on its track) to jump through a long list.
 /// It works in whatever units the caller measures in (the touch point, the offset and the
 /// track share them); a press that neither drags nor grabs the thumb comes back as a tap.
+/// The thumb is for touch: it shows when a finger touches the list and fades out shortly
+/// after the list stops moving, so pad players never see it.
 /// </summary>
 internal sealed class TouchScroller
 {
     private const float FlingFriction = 0.95f; // velocity kept per 16 ms frame
+    private const long ShowMs = 900;  // the thumb stays this long after the last movement
+    private const long FadeMs = 300;  // then fades out over this long
     private readonly IDispatcher _dispatcher;
     private readonly Func<float> _offset;
     private readonly Action<float> _scrollTo;
@@ -27,7 +31,9 @@ internal sealed class TouchScroller
     private bool _dragging;
     private readonly List<(long Ms, float Y)> _trail = [];
     private IDispatcherTimer? _fling;
+    private IDispatcherTimer? _fade;
     private float _velocity; // units per ms
+    private long _lastActive = long.MinValue / 2;
 
     /// <param name="track">The scrollbar's track, where the thumb runs.</param>
     /// <param name="slop">How far a finger moves before a press becomes a drag.</param>
@@ -47,6 +53,35 @@ internal sealed class TouchScroller
 
     /// <summary>True while the thumb is held: the caller draws it wider.</summary>
     public bool HoldingThumb { get; private set; }
+
+    /// <summary>How visible the thumb is, 0 to 1: the caller scales its alpha and skips it at 0.</summary>
+    public float Visibility
+    {
+        get
+        {
+            if (HoldingThumb || _dragging) return 1;
+            var idle = Environment.TickCount64 - _lastActive;
+            return idle <= ShowMs ? 1 : Math.Clamp(1 - (idle - ShowMs) / (float)FadeMs, 0, 1);
+        }
+    }
+
+    // A touch or a moving list keeps the thumb shown; once it rests, a timer repaints the fade.
+    private void Touched()
+    {
+        _lastActive = Environment.TickCount64;
+        if (_fade is null)
+        {
+            _fade = _dispatcher.CreateTimer();
+            _fade.Interval = TimeSpan.FromMilliseconds(32);
+            _fade.Tick += (_, _) =>
+            {
+                if (Environment.TickCount64 - _lastActive < ShowMs) return;
+                _scrollTo(_offset()); // repaint
+                if (Visibility <= 0) _fade!.Stop();
+            };
+        }
+        _fade.Start();
+    }
 
     /// <summary>The thumb's rectangle on the track, or empty when the list fits.</summary>
     public SKRect Thumb()
@@ -70,13 +105,16 @@ internal sealed class TouchScroller
         {
             case SKTouchAction.Pressed:
                 Stop();
+                // Only a thumb the player can see is grabbed; a hidden one leaves the press to the list.
+                var visible = Visibility > 0;
+                Touched();
                 _start = point;
                 _startOffset = _offset();
                 _dragging = false;
                 _trail.Clear();
                 _trail.Add((now, point.Y));
                 var thumb = Thumb();
-                if (!thumb.IsEmpty && point.X >= _track().Left - _grabWidth)
+                if (visible && !thumb.IsEmpty && point.X >= _track().Left - _grabWidth)
                 {
                     // On the thumb: hold it where it was taken. On the track: the thumb jumps under the finger.
                     HoldingThumb = true;
@@ -85,6 +123,7 @@ internal sealed class TouchScroller
                 }
                 return null;
             case SKTouchAction.Moved:
+                Touched();
                 if (HoldingThumb) { MoveThumb(point.Y); return null; }
                 if (!_dragging && Math.Abs(point.Y - _start.Y) > _slop) _dragging = true;
                 if (_dragging)
@@ -95,6 +134,7 @@ internal sealed class TouchScroller
                 }
                 return null;
             case SKTouchAction.Released:
+                Touched();
                 if (HoldingThumb) { HoldingThumb = false; _scrollTo(_offset()); return null; }
                 if (_dragging) { _dragging = false; Fling(now); return null; }
                 return point;
@@ -131,6 +171,7 @@ internal sealed class TouchScroller
             {
                 var target = Math.Clamp(_offset() + _velocity * 16, 0, _max());
                 _velocity *= FlingFriction;
+                Touched();
                 _scrollTo(target);
                 if (target <= 0 || target >= _max() || Math.Abs(_velocity) * 16 < _slop * 0.05f) _fling!.Stop();
             };
