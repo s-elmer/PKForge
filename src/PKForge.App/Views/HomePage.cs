@@ -157,10 +157,13 @@ public sealed class HomePage : ContentPage, IPadHandler
     }
 
     /// <summary>
-    /// Fires <paramref name="onLongPress"/> once a finger rests on <paramref name="view"/>
-    /// for the platform long-press timeout without drifting past the touch slop.
+    /// Handles touch on <paramref name="view"/> from the native touch stream: a press released
+    /// within the touch slop is a tap, one that rests for the platform long-press timeout is a
+    /// long press. Both live here because subscribing to the native stream replaces the
+    /// listener a MAUI tap recognizer relies on, so a recognizer on the same view never fires.
+    /// A drag that scrolls the shelf cancels the press.
     /// </summary>
-    private static void AttachLongPress(View view, Action onLongPress)
+    private static void AttachPress(View view, Action onTap, Action onLongPress)
     {
         view.HandlerChanged += (_, _) =>
         {
@@ -168,35 +171,41 @@ public sealed class HomePage : ContentPage, IPadHandler
             var slop = Android.Views.ViewConfiguration.Get(platform.Context!)!.ScaledTouchSlop;
             var timeout = Android.Views.ViewConfiguration.LongPressTimeout;
             var token = 0;
+            var pressing = false;
             float downX = 0, downY = 0;
             platform.Touch += (_, e) =>
             {
-                // Handled is left as the other subscribers set it: the tap recognizer
-                // shares this stream and must keep receiving the whole gesture.
                 var motion = e.Event!;
                 switch (motion.ActionMasked)
                 {
                     case Android.Views.MotionEventActions.Down:
                         var pressed = ++token;
+                        pressing = true;
                         downX = motion.GetX();
                         downY = motion.GetY();
                         view.Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(timeout), () =>
                         {
-                            if (pressed != token) return;
-                            token++;
+                            if (pressed != token || !pressing) return;
+                            pressing = false;
                             platform.PerformHapticFeedback(Android.Views.FeedbackConstants.LongPress);
                             onLongPress();
                         });
                         break;
                     case Android.Views.MotionEventActions.Move:
                         if (Math.Abs(motion.GetX() - downX) > slop || Math.Abs(motion.GetY() - downY) > slop)
-                            token++;
+                            pressing = false;
                         break;
                     case Android.Views.MotionEventActions.Up:
+                        token++;
+                        if (pressing) onTap();
+                        pressing = false;
+                        break;
                     case Android.Views.MotionEventActions.Cancel:
                         token++;
+                        pressing = false;
                         break;
                 }
+                e.Handled = true;
             };
         };
     }
@@ -1218,28 +1227,20 @@ public sealed class HomePage : ContentPage, IPadHandler
                 _viewModel.Groups[i].IsSelected = i == _shelfIndex;
         }
 
-        // Long-press (held ~0.5 s) opens the identity menu; the tap that follows the
-        // release is swallowed so the save does not also open. MAUI's pointer
-        // recognizer never sees touch once a tap recognizer owns the view on Android,
-        // so the hold is timed from the native touch stream it shares with the tap.
-        var longPressFired = false;
-        AttachLongPress(card, () =>
-        {
-            if (card.BindingContext is not SaveCard group) return;
-            longPressFired = true;
-            Select(group);
-            _ = ShowSaveMenuAsync(group);
-        });
-
-        var tap = new TapGestureRecognizer();
-        tap.Tapped += async (_, _) =>
-        {
-            if (longPressFired) { longPressFired = false; return; }
-            if (card.BindingContext is not SaveCard group) return;
-            Select(group);
-            await OpenCardAsync(group);
-        };
-        card.GestureRecognizers.Add(tap);
+        // A tap opens the save; a long press (held ~0.5 s) opens its identity menu instead.
+        AttachPress(card,
+            () =>
+            {
+                if (card.BindingContext is not SaveCard group) return;
+                Select(group);
+                _ = OpenCardAsync(group);
+            },
+            () =>
+            {
+                if (card.BindingContext is not SaveCard group) return;
+                Select(group);
+                _ = ShowSaveMenuAsync(group);
+            });
         BlockNativeFocus(card);
         return card;
     }
