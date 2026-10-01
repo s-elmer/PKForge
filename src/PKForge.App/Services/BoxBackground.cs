@@ -3,7 +3,7 @@ using PKForge.Chrome;
 namespace PKForge.App.Services;
 
 /// <summary>
-/// How the PC boxes show their game wallpaper: veiled (the default), duotone, or horizon.
+/// How the PC boxes show their game wallpaper: blue (the default), veiled, duotone, or horizon.
 /// A player setting in Settings > Misc.
 /// </summary>
 public static class BoxBackground
@@ -11,9 +11,9 @@ public static class BoxBackground
     private const string Key = "box_background";
 
     public static StoragePaint.WallpaperStyle Style =>
-        Enum.TryParse<StoragePaint.WallpaperStyle>(Preferences.Default.Get(Key, nameof(StoragePaint.WallpaperStyle.Veiled)), out var style)
+        Enum.TryParse<StoragePaint.WallpaperStyle>(Preferences.Default.Get(Key, nameof(StoragePaint.WallpaperStyle.Blue)), out var style)
             ? style
-            : StoragePaint.WallpaperStyle.Veiled;
+            : StoragePaint.WallpaperStyle.Blue;
 
     public static void Set(StoragePaint.WallpaperStyle style) => Preferences.Default.Set(Key, style.ToString());
 
@@ -21,6 +21,7 @@ public static class BoxBackground
     {
         StoragePaint.WallpaperStyle.Duotone => "Duotone",
         StoragePaint.WallpaperStyle.Horizon => "Horizon",
-        _ => "Veiled",
+        StoragePaint.WallpaperStyle.Veiled => "Veiled",
+        _ => "Blue",
     };
 }

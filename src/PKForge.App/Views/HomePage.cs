@@ -883,6 +883,7 @@ public sealed class HomePage : ContentPage, IPadHandler
                 var styles = Enum.GetValues<PKForge.Chrome.StoragePaint.WallpaperStyle>();
                 var picked = await PadMenu.ShowAsync(_hostGrid, "Box background", null,
                     [
+                        new PadOption(BoxBackground.Name(PKForge.Chrome.StoragePaint.WallpaperStyle.Blue), Detail: "The game's wallpaper pattern in the app's blues."),
                         new PadOption(BoxBackground.Name(PKForge.Chrome.StoragePaint.WallpaperStyle.Veiled), Detail: "The game's wallpaper under a navy veil."),
                         new PadOption(BoxBackground.Name(PKForge.Chrome.StoragePaint.WallpaperStyle.Duotone), Detail: "The wallpaper's pattern in two tones, navy to its own colour."),
                         new PadOption(BoxBackground.Name(PKForge.Chrome.StoragePaint.WallpaperStyle.Horizon), Detail: "The wallpaper rises from the bottom and fades into the navy."),

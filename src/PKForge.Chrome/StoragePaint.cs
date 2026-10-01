@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using SkiaSharp;
 
 namespace PKForge.Chrome;
@@ -44,7 +45,7 @@ public static class StoragePaint
     }
 
     /// <summary>How a box's own wallpaper shows in the well (a player setting).</summary>
-    public enum WallpaperStyle { Veiled, Duotone, Horizon }
+    public enum WallpaperStyle { Blue, Veiled, Duotone, Horizon }
 
     /// <summary>
     /// Draws a box's game wallpaper inside the well, covering it (aspect kept, overflow cropped)
@@ -98,6 +99,20 @@ public static class StoragePaint
                 c.DrawRect(well, fade);
                 break;
             }
+            case WallpaperStyle.Blue:
+            {
+                // The art's light and shade painted in quiet shades of the app's blue, and
+                // darker toward the edges.
+                using (var map = new SKPaint { ColorFilter = BlueMap(art) })
+                    c.DrawImage(art, source, well, sampling, map);
+                using var vignette = new SKPaint
+                {
+                    Shader = SKShader.CreateRadialGradient(new SKPoint(well.MidX, well.MidY), well.Width * 0.62f,
+                        [SKColors.Transparent, Well.WithAlpha(140)], [0.55f, 1f], SKShaderTileMode.Clamp),
+                };
+                c.DrawRect(well, vignette);
+                break;
+            }
             default:
             {
                 // The art as it is, under a navy veil.
@@ -112,6 +127,52 @@ public static class StoragePaint
         using var stroke = Stroke(WellEdge, edge);
         c.DrawRoundRect(SKRect.Inflate(well, -edge / 2, -edge / 2), 28f * unit, 28f * unit, stroke);
     }
+
+    private static readonly SKColor[] BlueStops = [Well, new(0x0E, 0x33, 0x68), new(0x1E, 0x58, 0x92)];
+    private static readonly ConditionalWeakTable<SKImage, SKColorFilter> BlueMaps = new();
+
+    /// <summary>
+    /// A gradient map for one wallpaper: its grey levels, stretched over the art's own range
+    /// (the wallpapers are pale and low in contrast), mapped onto <see cref="BlueStops"/>.
+    /// Built once per image.
+    /// </summary>
+    private static SKColorFilter BlueMap(SKImage art) => BlueMaps.GetValue(art, image =>
+    {
+        using var bitmap = SKBitmap.FromImage(image);
+        var levels = new List<int>();
+        for (var y = 0; y < bitmap.Height; y += 2)
+            for (var x = 0; x < bitmap.Width; x += 2)
+            {
+                var p = bitmap.GetPixel(x, y);
+                levels.Add((p.Red * 299 + p.Green * 587 + p.Blue * 114) / 1000);
+            }
+        levels.Sort();
+        // The 5th and 95th percentiles, so a few stray pixels do not flatten the stretch.
+        float low = levels.Count == 0 ? 0 : levels[levels.Count / 20];
+        float high = levels.Count == 0 ? 255 : Math.Max(low + 1, levels[levels.Count * 19 / 20]);
+        var alpha = new byte[256];
+        var red = new byte[256];
+        var green = new byte[256];
+        var blue = new byte[256];
+        for (var i = 0; i < 256; i++)
+        {
+            var t = Math.Clamp((i - low) / (high - low), 0, 1) * (BlueStops.Length - 1);
+            var k = Math.Min((int)t, BlueStops.Length - 2);
+            var color = PksmPaint.Mix(BlueStops[k], BlueStops[k + 1], t - k);
+            alpha[i] = (byte)i;
+            red[i] = color.Red;
+            green[i] = color.Green;
+            blue[i] = color.Blue;
+        }
+        float[] grey =
+        [
+            0.299f, 0.587f, 0.114f, 0, 0,
+            0.299f, 0.587f, 0.114f, 0, 0,
+            0.299f, 0.587f, 0.114f, 0, 0,
+            0, 0, 0, 1, 0,
+        ];
+        return SKColorFilter.CreateCompose(SKColorFilter.CreateTable(alpha, red, green, blue), SKColorFilter.CreateColorMatrix(grey));
+    });
 
     /// <summary>The average colour of an image, sampled on a coarse grid.</summary>
     public static SKColor AverageColor(SKBitmap bitmap)
