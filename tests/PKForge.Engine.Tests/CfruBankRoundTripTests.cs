@@ -111,7 +111,11 @@ public sealed class CfruBankRoundTripTests : IDisposable
 
             // The transfer's dry run on a throwaway copy, then the real import, as TransferService does.
             using (var scratch = _engine.OpenSession(game.Serialize(), file))
-                Assert.NotNull(new TransferPreviewService().Preview(scratch, box, slot, export.Data, info.Format));
+            {
+                var preview = new TransferPreviewService().Preview(scratch, box, slot, export.Data, info.Format);
+                Assert.NotNull(preview);
+                Assert.Equal("It goes back into its own game exactly as it was stored.", Assert.Single(preview.Changes));
+            }
             Assert.True(game.ImportSlot(box, slot, export.Data, info.Format));
 
             Assert.Equal(image.Bytes, SlotBytes(game, image.Slot));

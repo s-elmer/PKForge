@@ -563,6 +563,9 @@ internal class CfruEngineSession : ISaveEngineSession
 
     // ── Import / export ──
 
+    /// <summary>The entity format of this game's own Pokémon (PK3RR, PK3GSC).</summary>
+    internal string EntityFormat => _profile.EntityFormat;
+
     public bool ImportSlot(int box, int slot, byte[] fileBytes, string? format = null)
     {
         if (EntityBytes.Normalize(format) == _profile.EntityFormat)

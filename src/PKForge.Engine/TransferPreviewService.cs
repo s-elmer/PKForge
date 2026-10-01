@@ -1,4 +1,5 @@
 using PKForge.Domain;
+using PKForge.Engine.RadicalRed;
 using PKHeX.Core;
 
 namespace PKForge.Engine;
@@ -71,8 +72,13 @@ public sealed class TransferPreviewService
         {
             if (!scratch.ImportSlot(box, slot, entityBytes, format))
                 return null;
+            var own = EntityBytes.Normalize(format) is { } normalized
+                && (scratch is CfruEngineSession cfru ? cfru.EntityFormat == normalized
+                    : scratch is Unbound.UnboundEngineSession && normalized == CfruEntity.Unbound);
             return new TransferPreview(
-                ["Conversion details are not available for this game's engine; the transfer itself is unchanged."],
+                [own
+                    ? "It goes back into its own game exactly as it was stored."
+                    : "Conversion details are not available for this game's engine; the transfer itself is unchanged."],
                 TransferLegality.Unknown,
                 ["This game has no offline legality analysis."]);
         }
