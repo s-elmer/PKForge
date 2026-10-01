@@ -287,7 +287,7 @@ public sealed class DexEditorPage : IPadPagingHandler
                 return;
             case "Mark everything seen":
                 foreach (var id in _orderedIds)
-                    _staged[id] = (true, _staged.TryGetValue(id, out var current) && current.Caught);
+                    _staged[id] = (true, StateOf(id).Caught); // caught species stay caught
                 break;
             case "Complete the Pokédex":
                 foreach (var id in _orderedIds)
