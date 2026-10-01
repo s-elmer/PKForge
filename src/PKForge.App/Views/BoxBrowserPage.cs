@@ -4369,6 +4369,9 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             AbilityItems, shaded: false), "ABILITY", async () => await OpenNamedPickerAsync("ABILITY", nameof(BoxBrowserViewModel.EditAbility), AbilityItems));
         var item = FocusBorder(NamedPicker("HELD ITEM", nameof(BoxBrowserViewModel.EditHeldItem), new LiveNames(() => SaveItemNames(data)),
             () => ItemsWithIcons(SaveItemNames(data)), shaded: true, open: OpenItem), "Held item", OpenItem);
+        // Abilities start in Gen 3 and held items in Gen 2; Gen 1 stores neither.
+        ability.IsVisible = (_sessionsFor()?.Generation ?? 3) >= 3;
+        item.IsVisible = (_sessionsFor()?.Generation ?? 3) >= 2;
         Border Move(int index, bool dark)
         {
             var property = $"EditMove{index + 1}";
@@ -4394,6 +4397,8 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             .Select(i => FocusBorder(StatLine(i, i % 2 == 0, EditTraining), StatNames[i], () => EditTraining(StatNames[i])))
             .ToArray();
         var ball = FocusBorder(NamedPicker("BALL", nameof(BoxBrowserViewModel.EditBall), data.BallNames, BallItems, shaded: true, leading: BallIcon()), "BALL", async () => await OpenNamedPickerAsync("BALL", nameof(BoxBrowserViewModel.EditBall), BallItems));
+        // Gen 1 and 2 Pokémon do not record the ball they were caught in.
+        ball.IsVisible = (_sessionsFor()?.Generation ?? 3) >= 3;
         var ot = FocusBorder(FieldRow("OT", nameof(BoxBrowserViewModel.EditOt), shaded: false), "OT", () =>
         {
             if (otRow is not null) FocusEntry(otRow);
