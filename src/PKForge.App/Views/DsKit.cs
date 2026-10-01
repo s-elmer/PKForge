@@ -13,6 +13,7 @@ namespace PKForge.App.Views;
 /// </summary>
 public sealed class DsFolderButton : Grid
 {
+    private static readonly Color ChipInk = EditorPaint.ChipInk.ToMauiColor();
     private readonly SKCanvasView _bg;
     private readonly Label _label;
     private readonly Label? _detail;
@@ -41,7 +42,8 @@ public sealed class DsFolderButton : Grid
             var native = PksmIcons.IsNative(_iconName);
             _icon = new Image
             {
-                Source = PksmIcons.Source(option.IconPath, native ? PksmIcons.Native : PksmIcons.White),
+                // Cyan, as the footer keys and the section chips.
+                Source = PksmIcons.Source(option.IconPath, native ? PksmIcons.Native : PksmIcons.Cyan),
                 WidthRequest = 22,
                 HeightRequest = 22,
                 HorizontalOptions = LayoutOptions.Center,
@@ -120,10 +122,8 @@ public sealed class DsFolderButton : Grid
         {
             if (_selected == value) return;
             _selected = value;
-            _label.TextColor = value ? UiTokens.SelectInk : UiTokens.Ink0;
-            if (_detail is not null) _detail.TextColor = value ? UiTokens.SelectInk : UiTokens.InkSoft;
-            if (_icon is not null && !PksmIcons.IsNative(_iconName))
-                _icon.Source = PksmIcons.Source(_iconName, value ? PksmIcons.Indigo : PksmIcons.White);
+            _label.TextColor = value ? ChipInk : UiTokens.Ink0;
+            if (_detail is not null) _detail.TextColor = value ? ChipInk : UiTokens.InkSoft;
             _bg.InvalidateSurface();
             if (value) StartMarquee();
             else StopMarquee();
@@ -185,8 +185,25 @@ public sealed class DsFolderButton : Grid
         canvas.Save();
         canvas.Scale(d);
         var r = new SKRect(0.5f, 0.5f, info.Width / d - 0.5f, info.Height / d - 0.5f);
-        if (selected) PksmPaint.SelectedButton(canvas, r, 4);
-        else PksmPaint.BlackButton(canvas, r, 4);
+        // At rest, a dark band with a quiet edge; selected, the section chip's look (its blue
+        // gradient and a cyan rim), the same as a focused editor field.
+        using var fill = new SKPaint
+        {
+            IsAntialias = true,
+            Shader = selected
+                ? SKShader.CreateLinearGradient(new SKPoint(0, r.Top), new SKPoint(0, r.Bottom), [EditorPaint.ChipTop, EditorPaint.ChipBottom], SKShaderTileMode.Clamp)
+                : null,
+            Color = EditorPaint.Band.WithAlpha(200),
+        };
+        canvas.DrawRoundRect(r, 6, 6, fill);
+        using var rim = new SKPaint
+        {
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = selected ? 2f : 1.2f,
+            Color = selected ? EditorPaint.Cyan : StoragePaint.WellEdge,
+        };
+        canvas.DrawRoundRect(SKRect.Inflate(r, -0.6f, -0.6f), 6, 6, rim);
         canvas.Restore();
     }
 }

@@ -68,8 +68,13 @@ public static class Kit
     public static Shadow HardShadow() => FloatShadow;
 
     /// <summary>Navy body with the faint light along the top edge (the summary panel).</summary>
+    // The storage well's navy, a touch lighter at the top.
+    private static readonly Color WellTop = PksmPaint.Mix(StoragePaint.Well, StoragePaint.FrameEdge, 0.25f).ToMauiColor();
+    private static readonly Color WellBody = StoragePaint.Well.ToMauiColor();
+    private static readonly Color WellRim = StoragePaint.FrameEdge.ToMauiColor();
+
     private static Brush PanelBrush() => new LinearGradientBrush(
-        [new GradientStop(UiTokens.PanelTop, 0f), new GradientStop(UiTokens.Paper, 0.09f)],
+        [new GradientStop(WellTop, 0f), new GradientStop(WellBody, 0.12f)],
         new Point(0, 0), new Point(0, 1));
 
     /// <summary>
@@ -79,9 +84,9 @@ public static class Kit
     public static Border Panel(View content, double padding = 12) => new()
     {
         Background = PanelBrush(),
-        Stroke = UiTokens.ShellEdge,
+        Stroke = WellRim,
         StrokeThickness = UiTokens.PanelEdge,
-        StrokeShape = new RoundRectangle { CornerRadius = UiTokens.PanelRadius },
+        StrokeShape = new RoundRectangle { CornerRadius = 12 },
         Shadow = FloatShadow,
         Padding = padding,
         Content = content,
@@ -584,15 +589,16 @@ public static class Kit
     /// </summary>
     public static View HeaderBar(string title, Color? accent = null)
     {
-        var body = accent ?? UiTokens.AccentNeutral;
+        // The banner of the art direction (the box name, the editor's name tab): a blue
+        // gradient under a white rim. An accent tints it instead.
+        var top = accent is { } tint ? tint.WithLuminosity(Math.Min(1, tint.GetLuminosity() + 0.12f)) : StoragePaint.BannerTop.ToMauiColor();
+        var bottom = accent is { } shade ? shade.WithLuminosity(Math.Max(0, shade.GetLuminosity() - 0.08f)) : StoragePaint.BannerBottom.ToMauiColor();
         return new Border
         {
-            Background = new LinearGradientBrush(
-                [new GradientStop(body.WithLuminosity(Math.Min(1, body.GetLuminosity() + 0.08f)), 0f), new GradientStop(body.WithLuminosity(Math.Max(0, body.GetLuminosity() - 0.04f)), 1f)],
-                new Point(0, 0), new Point(0, 1)),
-            Stroke = UiTokens.Outline,
-            StrokeThickness = UiTokens.ControlEdge,
-            StrokeShape = new RoundRectangle { CornerRadius = UiTokens.ControlRadius },
+            Background = new LinearGradientBrush([new GradientStop(top, 0f), new GradientStop(bottom, 1f)], new Point(0, 0), new Point(0, 1)),
+            Stroke = Pksm.Ink.ToMauiColor(),
+            StrokeThickness = 1.5,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10, 3, 10, 3) },
             Padding = new Thickness(10, 5),
             HorizontalOptions = LayoutOptions.Fill,
             Content = new Label
