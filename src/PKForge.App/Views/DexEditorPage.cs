@@ -247,8 +247,9 @@ public sealed class DexEditorPage : IPadPagingHandler
         {
             var gapChoice = await PadMenu.ShowAsync(_host, "Living dex gaps",
                 $"{_missing.Count} species missing from storage. {_fillSelection.Count} selected.",
-                new PadOption($"Generate selected ({_fillSelection.Count})", IconPath: "create"),
-                new PadOption("Switch to dex editor", IconPath: "pokedex"),
+                new PadOption($"Generate selected ({_fillSelection.Count})", IconPath: "create",
+                    Detail: "Creates a legal Pokémon of each selected species in your boxes."),
+                new PadOption("Switch to dex editor", IconPath: "pokedex", Detail: "Back to marking species seen and caught."),
                 new PadOption("Close", IconPath: "close"));
             if (gapChoice == "Switch to dex editor")
             {
@@ -274,11 +275,11 @@ public sealed class DexEditorPage : IPadPagingHandler
         }
 
         var choice = await PadMenu.ShowAsync(_host, "Dex actions", null,
-            new PadOption("How to get this one", IconPath: "map"),
-            new PadOption("Mark everything seen", IconPath: "selectall"),
-            new PadOption("Complete the Pokédex", IconPath: "pokedex"),
-            new PadOption("Switch to living dex gaps", IconPath: "storage"),
-            new PadOption("Discard staged changes", IconPath: "clear"));
+            new PadOption("How to get this one", IconPath: "map", Detail: "Where and how to find the species under the cursor."),
+            new PadOption("Mark everything seen", IconPath: "selectall", Detail: "Every species becomes seen; caught ones stay caught."),
+            new PadOption("Complete the Pokédex", IconPath: "pokedex", Detail: "Every species becomes seen and caught; you choose to save when you leave."),
+            new PadOption("Switch to living dex gaps", IconPath: "storage", Detail: "Species missing from your boxes, ready to create."),
+            new PadOption("Discard staged changes", IconPath: "clear", Detail: "Undoes the changes made since you opened the dex."));
         switch (choice)
         {
             case "How to get this one":

@@ -975,20 +975,20 @@ public static class EventGallery
                     var q = _query;
                     var options = new List<PadOption>();
                     if (_ctx.Profile is not null)
-                        options.Add(new PadOption(Check(q.CompatibleOnly) + "Fits this save", IconPath: "game"));
+                        options.Add(new PadOption(Check(q.CompatibleOnly) + "Fits this save", IconPath: "game", Detail: "Only cards for this save's generation and language."));
                     options.Add(new PadOption($"Gifts: {q.Kind switch { WonderCardKindFilter.Pokemon => "Pokémon", WonderCardKindFilter.Items => "Items", _ => "All" }}", IconPath: "events"));
-                    options.Add(new PadOption(Check(q.ShinyOnly) + "Shiny only", IconPath: "shiny"));
-                    options.Add(new PadOption($"Status: {q.Received switch { WonderCardReceivedFilter.NotReceived => "New only", WonderCardReceivedFilter.Received => "Received", _ => "Any" }}", IconPath: "check"));
+                    options.Add(new PadOption(Check(q.ShinyOnly) + "Shiny only", IconPath: "shiny", Detail: "Only cards that give a shiny Pokémon."));
+                    options.Add(new PadOption($"Status: {q.Received switch { WonderCardReceivedFilter.NotReceived => "New only", WonderCardReceivedFilter.Received => "Received", _ => "Any" }}", IconPath: "check", Detail: "Show cards you already received here, or only new ones."));
                     options.Add(new PadOption($"Pokémon: {(q.Species is { } sp ? SpeciesName(_ctx.Data, sp) : "Any")}", IconPath: "pokedex"));
                     options.Add(new PadOption($"Year: {q.Year?.ToString() ?? "Any"}", IconPath: "calendar"));
                     options.Add(new PadOption($"Language: {q.Language ?? "Any"}", IconPath: "info"));
-                    options.Add(new PadOption($"Event: {(q.Series is { Length: > 14 } lengthy ? lengthy[..13] + "…" : q.Series ?? "Any")}", IconPath: "ribbons"));
-                    options.Add(new PadOption(Check(q.OnePerEvent) + "One card per event", IconPath: "compact"));
+                    options.Add(new PadOption($"Event: {(q.Series is { Length: > 14 } lengthy ? lengthy[..13] + "…" : q.Series ?? "Any")}", IconPath: "ribbons", Detail: "Only cards from one event series."));
+                    options.Add(new PadOption(Check(q.OnePerEvent) + "One card per event", IconPath: "compact", Detail: "Show one card for each event instead of one per language."));
                     options.Add(new PadOption($"Sort: {SortLabel(q.Sort)}", IconPath: "sort"));
                     options.Add(new PadOption($"Group: {GroupLabel(q.Grouping)}", IconPath: "blocks"));
                     if (q.ActiveFilterCount > 0 || q.Search.Length > 0)
-                        options.Add(new PadOption("Clear all filters", IconPath: "clear"));
-                    options.Add(new PadOption($"Clear marks ({_ctx.History.Count})", IconPath: "delete"));
+                        options.Add(new PadOption("Clear all filters", IconPath: "clear", Detail: "Turn off every filter and clear the search."));
+                    options.Add(new PadOption($"Clear marks ({_ctx.History.Count})", IconPath: "delete", Detail: "Remove every received mark, for all your saves."));
 
                     var choice = await PadMenu.ShowAsync(_ctx.Host, "Filter cards",
                         $"{_page.Items.Count} of {_page.Total} cards shown. Filters never block receiving.", options.ToArray());
@@ -1540,7 +1540,8 @@ public static class EventGallery
             try
             {
                 choice = await PadMenu.ShowAsync(_ctx.Host, "Export", "Share the wonder card itself, or the Pokémon it gives as a .pk file.",
-                    new PadOption("Card file", IconPath: "events"), new PadOption("Pokémon (.pk)", IconPath: "export"));
+                    new PadOption("Card file", IconPath: "events", Detail: "The wonder card as a file."),
+                    new PadOption("Pokémon (.pk)", IconPath: "export", Detail: "The Pokémon the card gives, as a .pk file."));
             }
             finally
             {

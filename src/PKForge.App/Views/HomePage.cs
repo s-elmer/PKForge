@@ -286,9 +286,9 @@ public sealed class HomePage : ContentPage, IPadHandler
                     "Now then... let's find your games!");
 
                 var choice = await PadMenu.ShowAsync(_hostGrid, "Get started", null,
-                    new PadOption("Link an emulator", IconPath: "link"),
-                    new PadOption("Open a single save file", IconPath: "file"),
-                    new PadOption($"Download the sprite pack ({SpritePackDownloader.SizeHint})", IconPath: "download"),
+                    new PadOption("Link an emulator", IconPath: "link", Detail: "Pick the emulator folder where your games keep their saves."),
+                    new PadOption("Open a single save file", IconPath: "file", Detail: "Pick one save file instead of a whole emulator folder."),
+                    new PadOption($"Download the sprite pack ({SpritePackDownloader.SizeHint})", IconPath: "download", Detail: "Animated sprites, HOME pictures and item icons, to use offline."),
                     new PadOption("Maybe later", IconPath: "close"));
                 switch (choice)
                 {
@@ -408,7 +408,7 @@ public sealed class HomePage : ContentPage, IPadHandler
     {
         var choice = await PadMenu.ShowAsync(_hostGrid, "Filter games", null,
             new PadOption("All games", IconPath: "all"),
-            new PadOption("Release order", IconPath: "calendar"),
+            new PadOption("Release order", IconPath: "calendar", Detail: "Every game, from the oldest release to the newest."),
             new PadOption("Alphabetical (A-Z)", IconPath: "alpha"),
             new PadOption("Game Boy (Gen I-II)", IconPath: "platform-gb"),
             new PadOption("GBA (Gen III)", IconPath: "platform-gba"),
@@ -579,18 +579,18 @@ public sealed class HomePage : ContentPage, IPadHandler
         var hiddenOption = $"Show hidden saves ({hiddenCount})";
         var options = new List<PadOption>
         {
-            new("Link an emulator", IconPath: "link"),
-            new("Manage linked storage", IconPath: "sdcard"),
-            new("Open a save file", IconPath: "file"),
+            new("Link an emulator", IconPath: "link", Detail: "Pick the emulator folder where your games keep their saves."),
+            new("Manage linked storage", IconPath: "sdcard", Detail: "Unlink emulator folders. Your files stay on the device."),
+            new("Open a save file", IconPath: "file", Detail: "Pick one save file instead of a whole emulator folder."),
         };
-        if (hiddenCount > 0) options.Add(new PadOption(hiddenOption, IconPath: "show"));
+        if (hiddenCount > 0) options.Add(new PadOption(hiddenOption, IconPath: "show", Detail: "Saves you hid from Home. Pick one to show it again."));
         options.AddRange(
         [
-            new PadOption("Restore points", IconPath: "history"),
+            new PadOption("Restore points", IconPath: "history", Detail: "The backups made before each write, to put a save back as it was."),
             new PadOption("About PKForge", IconPath: "info"),
             new PadOption("Check for update", IconPath: "update"),
-            new PadOption("Music", IconPath: "music"),
-            new PadOption("Misc", IconPath: "gears"),
+            new PadOption("Music", IconPath: "music", Detail: "Play your own audio files in the background."),
+            new PadOption("Misc", IconPath: "gears", Detail: "Sprite pack, rescan, logs, screen and editing modes."),
             new PadOption("Quit PKForge", IconPath: "quit"),
         ]);
         var choice = await PadMenu.ShowAsync(_hostGrid, "Settings", null, [.. options]);
@@ -649,7 +649,7 @@ public sealed class HomePage : ContentPage, IPadHandler
 
         var options = roots
             .Select(root => new PadOption($"Unlink {SaveDescriptions.EmulatorName(root.Kind)} · {root.DisplayName}", IconPath: IconFor(root.Kind)))
-            .Append(new PadOption("Unlink all storage units", IconPath: "unlink"))
+            .Append(new PadOption("Unlink all storage units", IconPath: "unlink", Detail: "Removes every linked folder. Your files stay on the device."))
             .Append(new PadOption("Cancel", IconPath: "close"))
             .ToArray();
         var choice = await PadMenu.ShowAsync(_hostGrid, "Linked storage", "Remove a linked emulator folder without resetting the app.", options);
@@ -800,10 +800,11 @@ public sealed class HomePage : ContentPage, IPadHandler
             var choice = await PadMenu.ShowAsync(_hostGrid, "Background music", playing,
                 new PadOption(music.IsPlaying ? "Pause" : "Play", IconPath: music.IsPlaying ? "pause" : "play"),
                 new PadOption("Skip to next track", IconPath: "skip"),
-                new PadOption($"Add music files ({music.Library.Count})", IconPath: "folder"),
-                new PadOption(music.Library.Count > 0 ? "Clear library" : "-", IconPath: "delete"),
-                new PadOption($"Order: {order}", IconPath: "shuffle"),
-                new PadOption($"Autostart: {auto}", IconPath: "settings"));
+                new PadOption($"Add music files ({music.Library.Count})", IconPath: "folder", Detail: "Pick audio files on your device to add to the library."),
+                new PadOption(music.Library.Count > 0 ? "Clear library" : "-", IconPath: "delete",
+                    Detail: music.Library.Count > 0 ? "Empties the list. Your audio files stay on the device." : null),
+                new PadOption($"Order: {order}", IconPath: "shuffle", Detail: "Play the library in order or shuffled."),
+                new PadOption($"Autostart: {auto}", IconPath: "settings", Detail: "ON starts the music when PKForge opens."));
             switch (choice)
             {
                 case "Play": music.Play(); break;
@@ -843,17 +844,20 @@ public sealed class HomePage : ContentPage, IPadHandler
         var choice = await PadMenu.ShowAsync(_hostGrid, "Misc", null,
             new PadOption(trainerProfiles.UseCurrentTrainerForGeneration
                 ? "Generated Pokémon obey trainer: ON"
-                : "Generated Pokémon obey trainer: OFF", IconPath: "profile"),
-            new PadOption($"Download full sprite pack ({SpritePackDownloader.SizeHint})", IconPath: "download"),
-            new PadOption("Rescan games", IconPath: "refresh"),
-            new PadOption("Scan report", IconPath: "report"),
+                : "Generated Pokémon obey trainer: OFF", IconPath: "profile",
+                Detail: "ON makes Pokémon you create belong to the open save's trainer."),
+            new PadOption($"Download full sprite pack ({SpritePackDownloader.SizeHint})", IconPath: "download", Detail: "Animated sprites, HOME pictures and item icons, to use offline."),
+            new PadOption("Rescan games", IconPath: "refresh", Detail: "Look through your linked folders for saves again."),
+            new PadOption("Scan report", IconPath: "report", Detail: "What the last scan found in each folder, to copy and send us."),
             new PadOption("Share logs", IconPath: "export", Detail: "Crash reports and recent activity, to send us when something goes wrong."),
             new PadOption(SecondScreenMode.UserOff ? "Second screen: OFF" : "Second screen: ON", IconPath: "compact",
                 Detail: "OFF keeps PKForge on one screen, so the other stays free (an emulator, say)."),
             new PadOption($"Box background: {BoxBackground.Name(BoxBackground.Style)}", IconPath: "box",
                 Detail: "How each PC box shows the wallpaper the game gives it."),
-            new PadOption(Services.HaXMode.IsOn ? "HaX mode: ON" : "HaX mode: OFF", IconPath: "hax"),
-            new PadOption(Services.HardcoreMode.IsOn ? "Hardcore mode: ON" : "Hardcore mode: OFF", IconPath: "hardcore"));
+            new PadOption(Services.HaXMode.IsOn ? "HaX mode: ON" : "HaX mode: OFF", IconPath: "hax",
+                Detail: "ON lets pickers offer any option, even illegal ones."),
+            new PadOption(Services.HardcoreMode.IsOn ? "Hardcore mode: ON" : "Hardcore mode: OFF", IconPath: "hardcore",
+                Detail: "ON blocks edits, new Pokémon and copies. Moving Pokémon still works."));
         switch (choice)
         {
             case var ownership when ownership?.StartsWith("Generated Pokémon obey trainer:", StringComparison.Ordinal) == true:
@@ -1257,8 +1261,9 @@ public sealed class HomePage : ContentPage, IPadHandler
     private async Task ShowEventsMenuAsync()
     {
         var choice = await PadMenu.ShowAsync(_hostGrid, "Event database", null,
-            new PadOption($"Community boxes ({Services.CommunityBoxService.RepoTitle})", IconPath: "community"),
-            new PadOption("Wonder cards", IconPath: "events"));
+            new PadOption($"Community boxes ({Services.CommunityBoxService.RepoTitle})", IconPath: "community",
+                Detail: "Event Pokémon collections shared online, to put in your Bank."),
+            new PadOption("Wonder cards", IconPath: "events", Detail: "Found inside each game: open a game, press Y, then Wonder cards."));
         switch (choice)
         {
             case var boxes when boxes?.StartsWith("Community boxes", StringComparison.Ordinal) == true:

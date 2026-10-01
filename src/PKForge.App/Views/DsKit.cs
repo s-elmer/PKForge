@@ -22,6 +22,7 @@ public sealed class DsFolderButton : Grid
     private readonly string _iconName = "";
     private bool _selected;
     private int _marqueeGeneration;
+    private readonly List<Label> _gliding = [];
 
     public Action? Tapped { get; set; }
 
@@ -91,6 +92,7 @@ public sealed class DsFolderButton : Grid
                 FontSize = UiTokens.TextSmall,
                 TextColor = UiTokens.InkSoft,
                 LineBreakMode = LineBreakMode.TailTruncation,
+                HorizontalOptions = LayoutOptions.Start,
                 InputTransparent = true,
             };
             _label.VerticalTextAlignment = TextAlignment.End;
@@ -130,28 +132,39 @@ public sealed class DsFolderButton : Grid
         }
     }
 
-    /// <summary>Long selected labels pause, glide left at reading speed, pause, then
-    /// return. Short labels allocate no timer or animation.</summary>
+    /// <summary>Long selected labels and detail lines pause, glide left at reading speed,
+    /// pause, then return; each line on its own. Lines that fit allocate no animation.</summary>
     private async void StartMarquee()
     {
         var generation = ++_marqueeGeneration;
         _label.TranslationX = 0;
         await Task.Delay(700);
         if (!_selected || generation != _marqueeGeneration || _labelViewport.Width <= 0) return;
+        Glide(_label, generation);
+        if (_detail is not null) Glide(_detail, generation);
+    }
 
-        var measured = _label.Measure(double.PositiveInfinity, HeightRequest).Width;
+    private async void Glide(Label line, int generation)
+    {
+        // A line narrower than the button fits: leave it alone (measuring it outside the
+        // layout pass can shift it out of place).
+        if (line.Width < _labelViewport.Width - 4) return;
+        var measured = line.Measure(double.PositiveInfinity, HeightRequest).Width;
         var overflow = measured - _labelViewport.Width;
         if (overflow <= 4) return;
-        _label.WidthRequest = measured;
+        // At rest a detail line ends in "…"; while it scrolls it shows in full.
+        line.LineBreakMode = LineBreakMode.NoWrap;
+        line.WidthRequest = measured;
+        _gliding.Add(line);
 
         while (_selected && generation == _marqueeGeneration)
         {
             var duration = (uint)Math.Clamp(overflow * 45, 1800, 6500);
-            await _label.TranslateToAsync(-overflow, 0, duration, Easing.Linear);
+            await line.TranslateToAsync(-overflow, 0, duration, Easing.Linear);
             if (!_selected || generation != _marqueeGeneration) return;
             await Task.Delay(900);
             if (!_selected || generation != _marqueeGeneration) return;
-            _label.TranslationX = 0;
+            line.TranslationX = 0;
             await Task.Delay(700);
         }
     }
@@ -160,6 +173,15 @@ public sealed class DsFolderButton : Grid
     {
         _marqueeGeneration++;
         _label.TranslationX = 0;
+        // Only the lines that scrolled were widened; the others keep their layout untouched.
+        foreach (var line in _gliding)
+        {
+            line.CancelAnimations();
+            line.TranslationX = 0;
+            line.WidthRequest = -1;
+        }
+        _gliding.Clear();
+        if (_detail is not null) _detail.LineBreakMode = LineBreakMode.TailTruncation;
     }
 
     /// <summary>

@@ -258,8 +258,8 @@ public sealed class BankPage : ContentPage, IPadPagingHandler
     {
         var format = await PadMenu.ShowAsync(_hostGrid, "Export",
             "A .pk folder is read by PKHeX and PKForge; a PKSM bank goes back to your 3DS.",
-            new PadOption("Folder of .pk files", IconPath: "folder"),
-            new PadOption("PKSM bank for the 3DS (.bnk)", IconPath: "bank"));
+            new PadOption("Folder of .pk files", IconPath: "folder", Detail: "One .pk file per Pokémon, readable by PKHeX and PKForge."),
+            new PadOption("PKSM bank for the 3DS (.bnk)", IconPath: "bank", Detail: "One bank file to copy back to PKSM on your 3DS."));
         if (format is null) return;
         if (format.StartsWith("PKSM", StringComparison.Ordinal))
         {
@@ -352,8 +352,8 @@ public sealed class BankPage : ContentPage, IPadPagingHandler
     {
         var format = await PadMenu.ShowAsync(_hostGrid, "Import",
             "From a 3DS: copy /3ds/PKSM/banks/ (or /3ds/PKSM/dumps/) off the SD card to this device, then pick the files.",
-            new PadOption("PKSM bank, dumps zip or .pk files", IconPath: "bank"),
-            new PadOption("Folder of .pk files", IconPath: "folder"));
+            new PadOption("PKSM bank, dumps zip or .pk files", IconPath: "bank", Detail: "Files copied off your 3DS; you see a preview before anything is added."),
+            new PadOption("Folder of .pk files", IconPath: "folder", Detail: "Every .pk file in a folder joins the bank; exact copies are skipped."));
         if (format is null) return;
         if (format.StartsWith("PKSM", StringComparison.Ordinal))
         {
@@ -707,19 +707,19 @@ public sealed class BankPage : ContentPage, IPadPagingHandler
 
         // Hardcore mode keeps every move and drops every copy: the read-only Summary is always
         // offered, the editor only when editing is allowed; Duplicate and Copy to game are not offered at all.
-        var options = new List<PadOption> { new("Summary", IconPath: "info") };
+        var options = new List<PadOption> { new("Summary", IconPath: "info", Detail: "A read-only look at this Pokémon.") };
         if (Allowed(SaveAction.EditMon))
         {
             options.Add(new PadOption("Edit", IconPath: "editor"));
-            options.Add(new PadOption("Evolve…", IconPath: "evolve"));
+            options.Add(new PadOption("Evolve…", IconPath: "evolve", Detail: "Evolves it right here in the bank."));
         }
-        options.Add(new PadOption("Send to Poképark", IconPath: "park"));
-        if (Allowed(SaveAction.Duplicate)) options.Add(new PadOption("Duplicate", IconPath: "copy"));
-        options.Add(new PadOption("Send to game…", IconPath: "send"));
-        if (Allowed(SaveAction.Duplicate)) options.Add(new PadOption("Copy to game…", IconPath: "copy"));
-        options.Add(new PadOption("Move (carry)", IconPath: "move"));
-        options.Add(new PadOption("Export .pk file", IconPath: "export"));
-        options.Add(new PadOption("Release from bank", IconPath: "release"));
+        options.Add(new PadOption("Send to Poképark", IconPath: "park", Detail: "It joins the Poképark visitors. The bank is not changed."));
+        if (Allowed(SaveAction.Duplicate)) options.Add(new PadOption("Duplicate", IconPath: "copy", Detail: "An exact copy goes into the first free bank slot."));
+        options.Add(new PadOption("Send to game…", IconPath: "send", Detail: "Moves it into a game's boxes and out of the bank."));
+        if (Allowed(SaveAction.Duplicate)) options.Add(new PadOption("Copy to game…", IconPath: "copy", Detail: "Puts a copy in a game's boxes; this one stays in the bank."));
+        options.Add(new PadOption("Move (carry)", IconPath: "move", Detail: "Pick it up and drop it in another slot."));
+        options.Add(new PadOption("Export .pk file", IconPath: "export", Detail: "Saves this Pokémon as a single .pk file."));
+        options.Add(new PadOption("Release from bank", IconPath: "release", Detail: "Removes it from the bank for good; there is no undo."));
         var choice = await PadMenu.ShowAsync(_hostGrid, entry.Info.Nickname,
             Note($"From {entry.Info.SourceName} · Gen {entry.Info.Generation} · deposited {entry.AddedUtc:yyyy-MM-dd}"),
             options.ToArray());
@@ -791,34 +791,34 @@ public sealed class BankPage : ContentPage, IPadPagingHandler
             : "Nothing selected";
         var targets = TransferTargets();
 
-        var options = new List<PadOption> { new("Boxes…", IconPath: "box") };
+        var options = new List<PadOption> { new("Boxes…", IconPath: "box", Detail: "Every box at a glance, to reorder, rename or restyle them.") };
         if (selection.Count > 0)
         {
-            options.Add(new PadOption("Move to another box…", IconPath: "move"));
-            options.Add(new PadOption("Move to a position…", IconPath: "move"));
+            options.Add(new PadOption("Move to another box…", IconPath: "move", Detail: "They fill a box's empty slots, in order."));
+            options.Add(new PadOption("Move to a position…", IconPath: "move", Detail: "They land from a slot you pick; what is there slides back."));
             if (Allowed(SaveAction.Duplicate))
-                options.Add(new PadOption(selection.Count == 1 ? "Duplicate" : "Duplicate all", IconPath: "copy"));
-            options.Add(new PadOption(selection.Count == 1 ? "Export .pk file" : "Export .pk files", IconPath: "export"));
-            options.Add(new PadOption("Export as a PKSM bank", IconPath: "export"));
+                options.Add(new PadOption(selection.Count == 1 ? "Duplicate" : "Duplicate all", IconPath: "copy", Detail: "Each copy goes into the first free bank slot."));
+            options.Add(new PadOption(selection.Count == 1 ? "Export .pk file" : "Export .pk files", IconPath: "export", Detail: "Writes one .pk file each into a folder you pick."));
+            options.Add(new PadOption("Export as a PKSM bank", IconPath: "export", Detail: "Packs them into one bank file for PKSM on the 3DS."));
             if (targets.ConnectedLabel is not null || targets.Detected.Length > 0)
-                options.Add(new PadOption("Send to a game…", IconPath: "send"));
-            options.Add(new PadOption("Release from bank…", IconPath: "release"));
+                options.Add(new PadOption("Send to a game…", IconPath: "send", Detail: "Moves them into a game; only those that arrive leave the bank."));
+            options.Add(new PadOption("Release from bank…", IconPath: "release", Detail: "Removes them from the bank for good; there is no undo."));
         }
         if (_anchor is not null && _anchor != (_boxIndex, _selectedSlot))
-            options.Add(new PadOption("Mark range to here", IconPath: "range"));
+            options.Add(new PadOption("Mark range to here", IconPath: "range", Detail: "Marks every Pokémon from your last mark to the cursor."));
         options.Add(new PadOption("Mark everything in this box", IconPath: "selectall"));
-        options.Add(new PadOption("Invert marks in this box", IconPath: "invert"));
+        options.Add(new PadOption("Invert marks in this box", IconPath: "invert", Detail: "Marked Pokémon in this box are unmarked, the rest marked."));
         options.Add(new PadOption("Mark the whole bank", IconPath: "selectall"));
-        options.Add(new PadOption("Mark by filter…", IconPath: "filter"));
+        options.Add(new PadOption("Mark by filter…", IconPath: "filter", Detail: "Search the bank and mark what matches."));
         if (_marked.Count > 0) options.Add(new PadOption("Clear marks", IconPath: "deselect"));
-        options.Add(new PadOption($"Sort box {_boxIndex + 1:00}…", IconPath: "sort"));
-        options.Add(new PadOption("Sort the whole bank…", IconPath: "sort"));
-        if (_marked.Count > 1) options.Add(new PadOption("Sort the marked into boxes…", IconPath: "sort"));
-        options.Add(new PadOption("Compact the bank (close gaps)", IconPath: "compact"));
+        options.Add(new PadOption($"Sort box {_boxIndex + 1:00}…", IconPath: "sort", Detail: "Reorders this box by dex number, level, type and more."));
+        options.Add(new PadOption("Sort the whole bank…", IconPath: "sort", Detail: "Reorders every Pokémon in the bank by the order you pick."));
+        if (_marked.Count > 1) options.Add(new PadOption("Sort the marked into boxes…", IconPath: "sort", Detail: "The marked move, sorted, into new boxes after the last one used."));
+        options.Add(new PadOption("Compact the bank (close gaps)", IconPath: "compact", Detail: "Fills every empty slot from box 1 on, keeping the order."));
         options.Add(new PadOption($"Rename box {_boxIndex + 1:00}…", IconPath: "rename"));
         options.Add(new PadOption($"Wallpaper for box {_boxIndex + 1:00}…", IconPath: "fashion"));
         if (_bank.BoxCount > 1)
-            options.Add(new PadOption($"Delete box {_boxIndex + 1:00}…", IconPath: "delete"));
+            options.Add(new PadOption($"Delete box {_boxIndex + 1:00}…", IconPath: "delete", Detail: "Its Pokémon move to free slots in other boxes first."));
 
         var choice = await PadMenu.ShowAsync(_hostGrid, $"Bank actions · {noun}",
             Note(_marked.Count > 0
@@ -1408,10 +1408,10 @@ public sealed class BankPage : ContentPage, IPadPagingHandler
         // mode fills the vault only by moving mons in from a save.
         if (await DeniedAsync(SaveAction.CreateMon)) return;
         var choice = await PadMenu.ShowAsync(_hostGrid, "Add to bank", null,
-            new PadOption("Create a Pokémon", IconPath: "create"),
-            new PadOption("Paste a Showdown set", IconPath: "script"),
-            new PadOption("Import .pk file", IconPath: "import"),
-            new PadOption("Scan a .pk QR", IconPath: "scan"));
+            new PadOption("Create a Pokémon", IconPath: "create", Detail: "Build a legal Pokémon step by step."),
+            new PadOption("Paste a Showdown set", IconPath: "script", Detail: "Turns a Pokémon Showdown text set into a Pokémon."),
+            new PadOption("Import .pk file", IconPath: "import", Detail: "Adds Pokémon from .pk files you pick."),
+            new PadOption("Scan a .pk QR", IconPath: "scan", Detail: "Pick a picture of a .pk QR code to add its Pokémon."));
         switch (choice)
         {
             case "Create a Pokémon" or "Paste a Showdown set" when session is null:

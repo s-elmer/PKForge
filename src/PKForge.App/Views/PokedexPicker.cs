@@ -577,10 +577,10 @@ public sealed class PokedexPicker : IPadHandler
     {
         var choice = await PadMenu.ShowAsync(_host, "Filters",
             "Categories, power, and themes combine with the type gems and generation chips.",
-            new PadOption($"Category: {_category}", IconPath: "type"),
-            new PadOption($"Power: {_power}", IconPath: "battle"),
-            new PadOption($"Theme: {_theme}", IconPath: "filter"),
-            new PadOption("Clear all filters", IconPath: "clear"));
+            new PadOption($"Category: {_category}", IconPath: "type", Detail: "Legendary, starter, fossil, baby and other groups."),
+            new PadOption($"Power: {_power}", IconPath: "battle", Detail: "Base stat total or battle style, such as fast."),
+            new PadOption($"Theme: {_theme}", IconPath: "filter", Detail: "Fun groups like dragons, birds or dinosaurs."),
+            new PadOption("Clear all filters", IconPath: "clear", Detail: "Also clears the type and generation picks."));
         switch (choice)
         {
             case "Clear all filters": ClearFilters(); return;

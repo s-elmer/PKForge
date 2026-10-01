@@ -634,38 +634,38 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         var boxTools = _sessionsFor()?.SupportsBoxTools == true;
         var options = new List<PadOption>
         {
-            new("Multi-select (- button)", IconPath: "select"),
-            new("Box manager…", IconPath: "box"),
+            new("Multi-select (- button)", IconPath: "select", Detail: "Mark several Pokémon to move, copy or edit them together."),
+            new("Box manager…", IconPath: "box", Detail: "Reorder, copy, lock or empty whole boxes."),
         };
         options.AddRange(Menu(
-            Allowed(SaveAction.CreateMon, new("Import .pk files", IconPath: "import")),
-            Allowed(SaveAction.CreateMon, new("Import Showdown team", IconPath: "script")),
-            new("Export box to Showdown", IconPath: "script"),
-            Allowed(SaveAction.CreateMon, new("Generate Living Dex", IconPath: "create")),
-            new("How to get a Pokémon…", IconPath: "map"),
-            new("Find held item…", IconPath: "item"),
+            Allowed(SaveAction.CreateMon, new("Import .pk files", IconPath: "import", Detail: "Pick Pokémon files to fill this box's empty slots.")),
+            Allowed(SaveAction.CreateMon, new("Import Showdown team", IconPath: "script", Detail: "Paste Showdown sets, see their legality, then place them in empty slots.")),
+            new("Export box to Showdown", IconPath: "script", Detail: "This box as Showdown text to copy or share."),
+            Allowed(SaveAction.CreateMon, new("Generate Living Dex", IconPath: "create", Detail: "Replaces every box with one legal Pokémon of each species.")),
+            new("How to get a Pokémon…", IconPath: "map", Detail: "How to obtain a species in the game you are editing."),
+            new("Find held item…", IconPath: "item", Detail: "See which Pokémon hold an item and go to one."),
             new("IV ranking…", IconPath: "stats", Detail: "Every Pokémon sorted by its IVs; pick one to go to it."),
-            Allowed(SaveAction.CreateMon, new("Egg factory…", IconPath: "egg")),
-            new("Day Care / Nursery", IconPath: "daycare")));
+            Allowed(SaveAction.CreateMon, new("Egg factory…", IconPath: "egg", Detail: "Fill empty PC slots with eggs: one of each species, or one species.")),
+            new("Day Care / Nursery", IconPath: "daycare", Detail: "See who is at the Day Care and withdraw them to the PC.")));
         if (_sessionsFor() is { } honeySession && PKForge.Engine.HoneyTreeService.IsSupported(honeySession))
-            options.Add(new("Honey trees", IconPath: "tree"));
+            options.Add(new("Honey trees", IconPath: "tree", Detail: "See and change the honey trees, including your Munchlax trees."));
         if (boxTools)
         {
             options.AddRange(Menu(
-                Allowed(SaveAction.BatchEdit, new("Battle prep", IconPath: "battle")),
-                Allowed(SaveAction.BatchEdit, new("Batch editor", IconPath: "batch")),
-                Allowed(SaveAction.BatchEdit, new("Batch rename / OT…", IconPath: "rename")),
-                Allowed(SaveAction.CreateMon, new("Random team…", IconPath: "dice"))));
+                Allowed(SaveAction.BatchEdit, new("Battle prep", IconPath: "battle", Detail: "Heal, max PP or set levels for the party or every box.")),
+                Allowed(SaveAction.BatchEdit, new("Batch editor", IconPath: "batch", Detail: "Change level, IVs, EVs, healing and more on many Pokémon at once.")),
+                Allowed(SaveAction.BatchEdit, new("Batch rename / OT…", IconPath: "rename", Detail: "Reset nicknames, or make you the original trainer, on many Pokémon.")),
+                Allowed(SaveAction.CreateMon, new("Random team…", IconPath: "dice", Detail: "Roll a random legal team into the party or empty box slots."))));
         }
         options.AddRange(Menu(
-            Allowed(SaveAction.BatchEdit, new("Presets…", IconPath: "preset")),
-            new("Trainer profiles…", IconPath: "profile"),
-            new("Legality check", IconPath: "check"),
-            new("Audit report", IconPath: "report"),
-            new("Nuzlocke report", IconPath: "skull"),
-            new("Collection dex…", IconPath: "pokedex")));
+            Allowed(SaveAction.BatchEdit, new("Presets…", IconPath: "preset", Detail: "One change, like Level 100 or perfect IVs, on a box or all boxes.")),
+            new("Trainer profiles…", IconPath: "profile", Detail: "Save trainer details and give them to Pokémon as their original trainer."),
+            new("Legality check", IconPath: "check", Detail: "Check every Pokémon in the save and repair the illegal ones."),
+            new("Audit report", IconPath: "report", Detail: "Find cloned Pokémon and impossible values across the save."),
+            new("Nuzlocke report", IconPath: "skull", Detail: "The first catch on each route, from where each Pokémon was met."),
+            new("Collection dex…", IconPath: "pokedex", Detail: "Living dex tracker for the Bank and this save, normal and shiny.")));
         if (boxTools)
-            options.Add(new("Sort boxes…", IconPath: "sort"));
+            options.Add(new("Sort boxes…", IconPath: "sort", Detail: "Order this box or all boxes by dex number, level, type and more."));
         var choice = await PadMenu.ShowAsync(_hostGrid, "Storage tools", Note(null), options.ToArray());
         switch (choice)
         {
@@ -885,12 +885,12 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         var choice = await PadMenu.ShowAsync(_hostGrid, $"Box actions · {noun}",
             Note("No selection means the current box. Every write creates a restore point."),
             Menu(
-                new PadOption("Select Pokémon in these boxes", IconPath: "select"),
-                new PadOption("Mark all boxes", IconPath: "selectall"),
-                new PadOption("Lock / Unlock box(es)", IconPath: "padlock"),
-                Allowed(SaveAction.Duplicate, new("Copy box(es)…", IconPath: "copy")),
-                new PadOption("Delete box(es) (rescue Pokémon)", IconPath: "delete"),
-                new PadOption(emptyLabel, IconPath: "clear"),
+                new PadOption("Select Pokémon in these boxes", IconPath: "select", Detail: "Mark every Pokémon in these boxes in multi-select."),
+                new PadOption("Mark all boxes", IconPath: "selectall", Detail: "Select every box for the actions in this menu."),
+                new PadOption("Lock / Unlock box(es)", IconPath: "padlock", Detail: "Locked boxes are skipped by sorting, batch edits and emptying."),
+                Allowed(SaveAction.Duplicate, new("Copy box(es)…", IconPath: "copy", Detail: "Copy these boxes over other boxes, replacing what is there.")),
+                new PadOption("Delete box(es) (rescue Pokémon)", IconPath: "delete", Detail: "Removes the boxes; their Pokémon move to free slots first."),
+                new PadOption(emptyLabel, IconPath: "clear", Detail: "Releases every Pokémon in the boxes. The party is not touched."),
                 new PadOption("Clear box marks", IconPath: "deselect"),
                 // Name/wallpaper act on the box under the cursor (PKHeX SAV_BoxLayout edits one box at a time).
                 _sessionsFor() is { } layoutSession && Engine.BoxLayoutService.SupportsNames(layoutSession)
@@ -1063,7 +1063,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         const int MarkAll = -1;
         var rows = new List<PickItem>
         {
-            new(MarkAll, $"Mark all {holders.Count} (multi-select)", Detail: "Then Batch editor → Remove held items"),
+            new(MarkAll, $"Mark all {holders.Count} (multi-select)", Detail: "To clear them, use Batch editor and Remove held items."),
         };
         for (var i = 0; i < holders.Count; i++)
         {
@@ -1171,25 +1171,25 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         {
             new(_viewModel.CurrentBoxFullyMarked ? $"Unmark {page}" : $"Select all in {page}", IconPath: "selectall"),
             new("Select all boxes", IconPath: "all"),
-            new($"Invert {page}", IconPath: "invert"),
+            new($"Invert {page}", IconPath: "invert", Detail: "Swap marked and unmarked Pokémon here."),
         };
         if (count > 0)
         {
             options.Add(new("Clear marks", IconPath: "deselect"));
             options.AddRange(Menu(
                 new PadOption("Move to box…", IconPath: "move"),
-                new PadOption("Move to Bank", IconPath: "bank"),
-                Allowed(SaveAction.Duplicate, new("Copy to Bank", IconPath: "bank")),
-                new PadOption("Move to another game…", IconPath: "send"),
-                Allowed(SaveAction.Duplicate, new("Copy to another game…", IconPath: "copy")),
-                Allowed(SaveAction.Duplicate, new("Duplicate", IconPath: "copy")),
-                new PadOption("Export (.pk files)", IconPath: "export"),
+                new PadOption("Move to Bank", IconPath: "bank", Detail: "They leave this save and are stored in the Bank."),
+                Allowed(SaveAction.Duplicate, new("Copy to Bank", IconPath: "bank", Detail: "Copies go to the Bank; the originals stay here.")),
+                new PadOption("Move to another game…", IconPath: "send", Detail: "They leave this save and join another linked game."),
+                Allowed(SaveAction.Duplicate, new("Copy to another game…", IconPath: "copy", Detail: "Copies join another linked game; the originals stay here.")),
+                Allowed(SaveAction.Duplicate, new("Duplicate", IconPath: "copy", Detail: "Clone the marked Pokémon into the first free box slots.")),
+                new PadOption("Export (.pk files)", IconPath: "export", Detail: "Share each marked Pokémon as its own file."),
                 new PadOption("Release", IconPath: "release")));
             options.AddRange(BulkOptions());
         }
-        options.Add(new("Mark Pokémon holding…", IconPath: "item"));
-        options.Add(new("Box manager…", IconPath: "box"));
-        options.Add(new("Back to move mode", IconPath: "confirm"));
+        options.Add(new("Mark Pokémon holding…", IconPath: "item", Detail: "Find Pokémon holding an item, then mark them or go to one."));
+        options.Add(new("Box manager…", IconPath: "box", Detail: "Reorder, copy, lock or empty whole boxes."));
+        options.Add(new("Back to move mode", IconPath: "confirm", Detail: "Leave multi-select."));
 
         var choice = await PadMenu.ShowAsync(_hostGrid, $"Multi-select · {count} marked",
             Note("Marks stay while you change box with L/R."), options.ToArray());
@@ -1628,13 +1628,13 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             new PadOption("Level 50 flat", IconPath: "level"),
             new PadOption("Level 100", IconPath: "level"),
             new PadOption(perfectLabel, IconPath: "stats"),
-            new PadOption("0 Attack IV (special)", IconPath: "stats"),
-            new PadOption("0 Speed IV (Trick Room)", IconPath: "stats"),
+            new PadOption("0 Attack IV (special)", IconPath: "stats", Detail: "Attack IV set to 0, for special attackers."),
+            new PadOption("0 Speed IV (Trick Room)", IconPath: "stats", Detail: "Speed IV set to 0, for Trick Room teams."),
             new PadOption("Reset EVs", IconPath: "restore"),
             new PadOption("Max friendship", IconPath: "heart"),
             new PadOption("Hyper Train everything", IconPath: "train"),
-            new PadOption("Export box (Showdown)", IconPath: "script"),
-            new PadOption("Import Showdown sets to this box", IconPath: "script"));
+            new PadOption("Export box (Showdown)", IconPath: "script", Detail: "Share this box as a Showdown text file."),
+            new PadOption("Import Showdown sets to this box", IconPath: "script", Detail: "Paste Showdown sets, see their legality, then place them in empty slots."));
         if (choice is null) return;
 
         if (choice == "Export box (Showdown)")
@@ -1845,7 +1845,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
                 ? await PadMenu.ShowAsync(_hostGrid, "Legality check", $"All {results.Count} Pokémon are legal.", "OK")
                 : await PadMenu.ShowAsync(_hostGrid, "Legality check",
                     Note($"{illegal.Count} illegal of {results.Count}. The red-dotted slots in this box fail PKHeX's checks."),
-                    Menu(Allowed(SaveAction.EditMon, new("Legalize all illegal", IconPath: "fix")),
+                    Menu(Allowed(SaveAction.EditMon, new("Legalize all illegal", IconPath: "fix", Detail: "Rewrite every illegal Pokémon in the save to its closest legal version.")),
                         new PadOption("Close", IconPath: "close")));
             if (choice == "Legalize all illegal")
                 await LegalizeAllIllegalAsync(illegal);
@@ -2118,9 +2118,9 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         var choice = await PadMenu.ShowAsync(_hostGrid, "Battle prep", "Every action is one backed-up write.",
             new PadOption("Heal party", IconPath: "heal"),
             new PadOption("Heal all (party + boxes)", IconPath: "heal"),
-            new PadOption("PP Max all moves", IconPath: "moves"),
+            new PadOption("PP Max all moves", IconPath: "moves", Detail: "Max PP Ups on every move, in the party and unlocked boxes."),
             new PadOption("Set party to Lv50 (flat rules)", IconPath: "level"),
-            new PadOption("Set all to Lv100", IconPath: "level"));
+            new PadOption("Set all to Lv100", IconPath: "level", Detail: "The party and every unlocked box go to level 100."));
         if (choice is null) return;
 
         var party = new[] { -1 };
@@ -2262,7 +2262,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             var itemChip = Chip("Remove held items", takeItems, "item");
             var pick = await PadMenu.ShowAsync(_hostGrid, "Batch editor", "Toggle operations, then apply.",
                 levelChip, ivChip, evChip, healChip, trainChip, friendChip, nameChip, itemChip,
-                new PadOption("Expert instructions…", IconPath: "code"),
+                new PadOption("Expert instructions…", IconPath: "code", Detail: "Add your own PKHeX batch lines on top of the choices above."),
                 new PadOption("Apply", IconPath: "confirm"),
                 new PadOption("Cancel", IconPath: "close"));
             if (pick is null or "Cancel") return;
@@ -2386,21 +2386,21 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             new PadOption("Trainer card", IconPath: "trainer"),
             new PadOption("Bag & items", IconPath: "bag"),
             new PadOption("Pokédex", IconPath: "pokedex"),
-            Allowed(SaveAction.EditTrainer, new("Fashion", IconPath: "box")),
-            new PadOption("Trainer records", IconPath: "records"),
-            Allowed(SaveAction.WriteRawBytes, new("Byte manipulation", IconPath: "hex")),
+            Allowed(SaveAction.EditTrainer, new("Fashion", IconPath: "box", Detail: "Unlock every outfit this save can legally own (Sword and Shield).")),
+            new PadOption("Trainer records", IconPath: "records", Detail: "The game's own trainer records, view only."),
+            Allowed(SaveAction.WriteRawBytes, new("Byte manipulation", IconPath: "hex", Detail: "Edit the save file's raw bytes. Written once, when you close.")),
             // Viewable in Hardcore mode; the editor itself refuses writes (EditWorld).
-            Engine.EventFlagService.IsSupported(session) ? new PadOption("Event flags", IconPath: "check") : null,
-            new PadOption("Wonder cards", IconPath: "events"),
+            Engine.EventFlagService.IsSupported(session) ? new PadOption("Event flags", IconPath: "check", Detail: "Turn story and event flags on or off, and edit event values.") : null,
+            new PadOption("Wonder cards", IconPath: "events", Detail: "Mystery Gift events and the gift cards stored in this save."),
             // Viewable in Hardcore mode; each world editor refuses writes itself.
-            WorldEventsMenu.HasAny(session) ? new PadOption("World & events", IconPath: "map") : null,
-            new PadOption("Export modified save", IconPath: "export"),
-            new PadOption("Restore points", IconPath: "history"),
+            WorldEventsMenu.HasAny(session) ? new PadOption("World & events", IconPath: "map", Detail: "Clocks, roaming Pokémon, one-time encounters and other world data.") : null,
+            new PadOption("Export modified save", IconPath: "export", Detail: "Share a copy of the edited save file."),
+            new PadOption("Restore points", IconPath: "history", Detail: "Backups made before each change; go back to one."),
             new PadOption("Close save", IconPath: "quit")).ToList();
         if (session.GetGrandUndergroundItems().Count != 0 && Guard.Allows(SaveAction.EditInventory))
-            options.Insert(2, new PadOption("Grand Underground", IconPath: "underground"));
+            options.Insert(2, new PadOption("Grand Underground", IconPath: "underground", Detail: "The Grand Underground items, kept apart from the Bag."));
         if (session.SupportsCompassSettings && Guard.Allows(SaveAction.EditTrainer))
-            options.Insert(2, new PadOption("Compass settings", IconPath: "settings"));
+            options.Insert(2, new PadOption("Compass settings", IconPath: "settings", Detail: "Pokémon Compass options such as exp share and level cap."));
         var choice = await PadMenu.ShowAsync(_hostGrid, "Save data", Note(null), options.ToArray());
         switch (choice)
         {
@@ -2419,10 +2419,10 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             case "Wonder cards":
             {
                 var wonderChoice = await PadMenu.ShowAsync(_hostGrid, "Wonder cards", Note(null),
-                    Menu(Allowed(SaveAction.InjectEvent, new PadOption("Event gallery", IconPath: "events")),
-                        new PadOption("In-save inbox", IconPath: "inbox"),
-                        Engine.KeyItemEventService.IsSupported(session) ? new PadOption("Key item events", IconPath: "key") : null,
-                        Engine.SaveBlockEditorService.IsSupported(session) ? new PadOption("Save blocks", IconPath: "blocks") : null));
+                    Menu(Allowed(SaveAction.InjectEvent, new PadOption("Event gallery", IconPath: "events", Detail: "Every Mystery Gift this save can receive.")),
+                        new PadOption("In-save inbox", IconPath: "inbox", Detail: "The Mystery Gift cards stored in this save, view only."),
+                        Engine.KeyItemEventService.IsSupported(session) ? new PadOption("Key item events", IconPath: "key", Detail: "Ticket events such as the Eon Ticket, Old Sea Map or Member Card.") : null,
+                        Engine.SaveBlockEditorService.IsSupported(session) ? new PadOption("Save blocks", IconPath: "blocks", Detail: "Browse save blocks and edit simple on/off and number values.") : null));
                 if (wonderChoice == "In-save inbox")
                 {
                     await MysteryGiftInboxEditor.ShowAsync(_hostGrid, session);
@@ -2576,12 +2576,12 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             var options = Menu(
                 new("Save current trainer as profile", IconPath: "profile"),
                 _viewModel.SelectedSlot >= 0 && profiles.Count > 0
-                    ? Allowed(SaveAction.EditMon, new("Apply profile to selected Pokémon", IconPath: "profile"))
+                    ? Allowed(SaveAction.EditMon, new("Apply profile to selected Pokémon", IconPath: "profile", Detail: "Make a saved profile this Pokémon's original trainer."))
                     : null,
                 profiles.Count > 0 ? new("Delete a profile", IconPath: "delete") : null,
                 new(store.UseCurrentTrainerForGeneration
                     ? "Generated Pokémon obey trainer: ON"
-                    : "Generated Pokémon obey trainer: OFF", IconPath: "profile")).ToList();
+                    : "Generated Pokémon obey trainer: OFF", IconPath: "profile", Detail: "ON makes Pokémon you create belong to the open save's trainer.")).ToList();
 
             var choice = await PadMenu.ShowAsync(_hostGrid, "Trainer profiles",
                 Note(profiles.Count == 0 ? "No named profiles yet." : string.Join('\n', profiles.Select(ProfileSummary))),
@@ -3039,12 +3039,12 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         {
             if (!await FlushPendingAsync()) return;
             var choice = await PadMenu.ShowAsync(_host, "Item presets", "Only items legal in this game are changed.",
-                new PadOption("Save current bag as preset", IconPath: "preset"),
-                new PadOption("My item presets", IconPath: "preset"),
+                new PadOption("Save current bag as preset", IconPath: "preset", Detail: "Store what your bag holds now, to apply again later."),
+                new PadOption("My item presets", IconPath: "preset", Detail: "Apply, update, rename or delete your saved bags."),
                 new PadOption("Refill this pouch to 99", IconPath: "fill"),
                 new PadOption("Give every Poké Ball x50", IconPath: "ball"),
-                new PadOption("Healing supplies x20", IconPath: "heal"),
-                new PadOption("Nuzlocke starter supplies", IconPath: "skull"),
+                new PadOption("Healing supplies x20", IconPath: "heal", Detail: "20 of each potion, drink, revive and status heal."),
+                new PadOption("Nuzlocke starter supplies", IconPath: "skull", Detail: "10 Poké Balls, 10 Potions, 3 Antidotes, 3 Paralyze Heals, 2 Escape Ropes."),
                 new PadOption("Remove every item in this pouch", IconPath: "clear"));
             if (choice is null) return;
 
@@ -3125,7 +3125,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
                 var action = await PadMenu.ShowAsync(_host, preset.Name,
                     $"{preset.Items.Count} items. Compatible items apply within Gen {preset.Generation}.",
                     new PadOption("Apply preset", IconPath: "confirm"),
-                    new PadOption("Update from current bag", IconPath: "refresh"),
+                    new PadOption("Update from current bag", IconPath: "refresh", Detail: "Replace this preset with what your bag holds now."),
                     new PadOption("Rename", IconPath: "rename"),
                     new PadOption("Delete", IconPath: "delete"));
                 if (action == "Rename")
@@ -3760,28 +3760,28 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         var options = new List<PadOption>();
         if (verdict is { Valid: false })
         {
-            options.Add(new("Explain legality", IconPath: "info"));
+            options.Add(new("Explain legality", IconPath: "info", Detail: "Why this Pokémon is flagged, with fixes when there are any."));
             options.AddRange(Menu(
-                Allowed(SaveAction.EditMon, new("Legalize this one", IconPath: "fix")),
-                Allowed(SaveAction.EditMon, new("Legalize all illegal", IconPath: "fix"))));
+                Allowed(SaveAction.EditMon, new("Legalize this one", IconPath: "fix", Detail: "Rewrite it to its closest legal version.")),
+                Allowed(SaveAction.EditMon, new("Legalize all illegal", IconPath: "fix", Detail: "Rewrite every illegal Pokémon in the save to its closest legal version."))));
         }
         options.AddRange(Menu(
             new PadOption("Summary", IconPath: "info"),
             new PadOption("Edit", IconPath: "editor"),
             Allowed(SaveAction.EditMon, new("Evolve…", IconPath: "evolve")),
-            new PadOption("Send to Poképark", IconPath: "park"),
-            new PadOption("Move", IconPath: "move"),
-            Allowed(SaveAction.Duplicate, new("Duplicate", IconPath: "copy")),
-            new PadOption("Send to Bank", IconPath: "bank"),
-            Allowed(SaveAction.Duplicate, new("Copy to Bank", IconPath: "copy")),
-            new PadOption("Send to another game…", IconPath: "send"),
-            Allowed(SaveAction.Duplicate, new("Copy to another game…", IconPath: "copy")),
-            new PadOption("Export .pk file", IconPath: "export"),
-            new PadOption("Show as Showdown set", IconPath: "script"),
-            new PadOption("Show as QR code", IconPath: "qr"),
-            new PadOption("Show as .pk QR", IconPath: "qr"),
-            new PadOption("RNG / IVs", IconPath: "dice"),
-            new PadOption("Lock / Unlock release", IconPath: "padlock"),
+            new PadOption("Send to Poképark", IconPath: "park", Detail: "Adds it to the Poképark visitors. The save is not changed."),
+            new PadOption("Move", IconPath: "move", Detail: "Pick it up and carry it to another slot."),
+            Allowed(SaveAction.Duplicate, new("Duplicate", IconPath: "copy", Detail: "Clone it into the next empty slot here.")),
+            new PadOption("Send to Bank", IconPath: "bank", Detail: "It leaves this save and is stored in the Bank."),
+            Allowed(SaveAction.Duplicate, new("Copy to Bank", IconPath: "copy", Detail: "A copy goes to the Bank; the original stays here.")),
+            new PadOption("Send to another game…", IconPath: "send", Detail: "It leaves this save and joins another linked game."),
+            Allowed(SaveAction.Duplicate, new("Copy to another game…", IconPath: "copy", Detail: "A copy joins another linked game; the original stays here.")),
+            new PadOption("Export .pk file", IconPath: "export", Detail: "Share this Pokémon as a file."),
+            new PadOption("Show as Showdown set", IconPath: "script", Detail: "Its set as Showdown text you can copy."),
+            new PadOption("Show as QR code", IconPath: "qr", Detail: "Its Showdown set as a QR code."),
+            new PadOption("Show as .pk QR", IconPath: "qr", Detail: "The whole Pokémon as a QR code that PKForge can scan into the Bank."),
+            new PadOption("RNG / IVs", IconPath: "dice", Detail: "See its PID and IVs, and change its nature without losing shininess."),
+            new PadOption("Lock / Unlock release", IconPath: "padlock", Detail: "A locked Pokémon cannot be released."),
             new PadOption("Release", IconPath: "release")));
         var choice = await PadMenu.ShowAsync(_hostGrid, nickname,
             Note(verdict is { Valid: false } ? verdict.Problem : null), options.ToArray());
@@ -5360,10 +5360,10 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         // whole sheet - with the reason on screen instead of an empty menu.
         if (await DeniedAsync(SaveAction.CreateMon)) return;
         var choice = await PadMenu.ShowAsync(_hostGrid, $"Add a Pokémon · slot {slot + 1}", null,
-            new PadOption("Create a Pokémon", IconPath: "create"),
-            new PadOption("Paste a Showdown set", IconPath: "script"),
-            new PadOption("Import .pk file", IconPath: "import"),
-            new PadOption("From event database", IconPath: "events"));
+            new PadOption("Create a Pokémon", IconPath: "create", Detail: "Pick a species and details; it is built legal for this game."),
+            new PadOption("Paste a Showdown set", IconPath: "script", Detail: "Turn a Showdown set into a legal Pokémon in this slot."),
+            new PadOption("Import .pk file", IconPath: "import", Detail: "Load a Pokémon file into this slot."),
+            new PadOption("From event database", IconPath: "events", Detail: "Put a Mystery Gift Pokémon in this slot."));
         switch (choice)
         {
             case "Create a Pokémon":

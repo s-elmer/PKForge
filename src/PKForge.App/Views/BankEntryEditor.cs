@@ -802,8 +802,8 @@ public static class BankEntryEditor
         private async Task QrAsync()
         {
             var choice = await EditorMenu.ShowAsync(_host, "QR transfer", null,
-                new PadOption("Show as .pk QR", IconPath: "qr"),
-                new PadOption("Scan a .pk QR", IconPath: "scan"));
+                new PadOption("Show as .pk QR", IconPath: "qr", Detail: "Shows this Pokémon as a QR code to scan on another device."),
+                new PadOption("Scan a .pk QR", IconPath: "scan", Detail: "Pick a picture of a QR code; its Pokémon replaces this one."));
             if (choice == "Show as .pk QR") await ShowEntityQrAsync();
             else if (choice == "Scan a .pk QR") await ScanEntityQrAsync();
         }

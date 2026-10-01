@@ -401,12 +401,14 @@ public sealed class CollectionDexPage : IPadPagingHandler
     private async Task ShowScopeMenuAsync()
     {
         var options = new List<PadOption> { new("All generations") };
-        if (_session is not null) options.Add(new PadOption("This game"));
+        if (_session is not null) options.Add(new PadOption("This game", Detail: "Only the species in the open save's game."));
         options.AddRange(_progressData!.Segments.Select(s => (s.Generation, Counts: _formsDex ? Tally(s.Generation) : (_shinyDex ? s.Shiny : s.Owned, s.Total)))
             .Where(s => s.Counts.Item2 > 0)
             .Select(s => new PadOption($"Gen {Roman(s.Generation)} · {s.Counts.Item1}/{s.Counts.Item2}")));
-        options.Add(new PadOption(_shinyDex ? "View: normal living dex" : "View: SHINY living dex"));
-        options.Add(new PadOption(_formsDex ? "View: one per species" : "View: every form"));
+        options.Add(new PadOption(_shinyDex ? "View: normal living dex" : "View: SHINY living dex",
+            Detail: _shinyDex ? null : "Only shiny Pokémon count toward each species."));
+        options.Add(new PadOption(_formsDex ? "View: one per species" : "View: every form",
+            Detail: _formsDex ? "Back to one entry per species." : "Lists each form on its own, like Unown letters and Vivillon patterns."));
         var choice = await PadMenu.ShowAsync(_host, "Scope", null, options.ToArray());
         if (choice is null) return;
         if (choice == "All generations") SetScope(null);
@@ -434,7 +436,7 @@ public sealed class CollectionDexPage : IPadPagingHandler
         var key = _viewIds[Math.Min(_grid.Cursor, Count - 1)];
         var id = SpeciesOf(key);
         var choice = await PadMenu.ShowAsync(_host, $"#{id:000} {CellName(key)}", null,
-            new PadOption("How to get", IconPath: "map"),
+            new PadOption("How to get", IconPath: "map", Detail: "Where to find this species in each game."),
             new PadOption("Close", IconPath: "close"));
         if (choice == "How to get")
         {
