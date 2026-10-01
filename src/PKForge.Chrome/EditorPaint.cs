@@ -32,8 +32,8 @@ public static class EditorPaint
     /// <summary>The two alternating row bands: dark and light, over the well and its watermark.</summary>
     public static SKColor RowBand(bool dark) => Band.WithAlpha(dark ? (byte)150 : (byte)60);
 
-    /// <summary>What the header shows for one Pokémon.</summary>
-    public sealed record Header(string Name, int Level, bool Shiny, int Gender, string Species, string? ExpLine);
+    /// <summary>What the header shows for one Pokémon; <paramref name="Accent"/> tints the tabs (the Bank uses the first type).</summary>
+    public sealed record Header(string Name, int Level, bool Shiny, int Gender, string Species, string? ExpLine, SKColor? Accent = null);
 
     /// <summary>
     /// The editor header over the top of the panel: name frame, name tab, level, star and
@@ -55,7 +55,9 @@ public static class EditorPaint
             {
                 IsAntialias = true,
                 Shader = SKShader.CreateLinearGradient(new SKPoint(0, name.Top), new SKPoint(0, name.Bottom),
-                    [StoragePaint.BannerTop, StoragePaint.BannerBottom], SKShaderTileMode.Clamp),
+                    header.Accent is { } tint
+                        ? [PksmPaint.Mix(tint, SKColors.White, 0.22f), PksmPaint.Mix(tint, SKColors.Black, 0.35f)]
+                        : [StoragePaint.BannerTop, StoragePaint.BannerBottom], SKShaderTileMode.Clamp),
             })
                 c.DrawPath(path, gradient);
             using var outline = Stroke(Pksm.Ink, edge);
@@ -73,12 +75,13 @@ public static class EditorPaint
         var species = new SKRect(r.Left, frame.Bottom + 4f * unit, r.Left + 262f * unit, frame.Bottom + 60f * unit);
         using (var path = Tab(species, 14f * unit, 22f * unit))
         {
-            using (var fill = Fill(CyanFill)) c.DrawPath(path, fill);
-            using var outline = Stroke(Cyan, edge);
+            using (var fill = Fill(header.Accent is { } tint ? PksmPaint.Mix(tint, Band, 0.7f) : CyanFill)) c.DrawPath(path, fill);
+            using var outline = Stroke(header.Accent is { } rim ? PksmPaint.Mix(rim, SKColors.White, 0.25f) : Cyan, edge);
             c.DrawPath(path, outline);
         }
         using var mid = new SKFont(typeface, 32f * unit);
-        Text(c, header.Species, species.Left + 20f * unit, species.MidY, mid, Cyan, species.Width - 50f * unit);
+        Text(c, header.Species, species.Left + 20f * unit, species.MidY, mid,
+            header.Accent is { } ink ? PksmPaint.Mix(ink, SKColors.White, 0.5f) : Cyan, species.Width - 50f * unit);
         if (header.ExpLine is { } exp)
         {
             using var small = new SKFont(typeface, 22f * unit);

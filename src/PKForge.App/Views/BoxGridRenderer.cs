@@ -100,6 +100,29 @@ public static class BoxGridRenderer
     }
 
     /// <summary>
+    /// One box as the storage grid draws it, whoever owns it (a save's box, a Bank box): the
+    /// slots, the cursor, the Pokémon in hand and the marks painted on the slots.
+    /// </summary>
+    /// <param name="Slots">The 30 slots; a null species is an empty slot.</param>
+    /// <param name="CarryOrigin">The slot the Pokémon in hand was lifted from, when it is in this box.</param>
+    /// <param name="Carried">The Pokémon in hand, whichever box it came from.</param>
+    /// <param name="Marking">Multi-select is on: the cursor turns green.</param>
+    /// <param name="RangeMark">A slot inside the rectangle being swept: whether it marks (true) or unmarks.</param>
+    /// <param name="Box">The box's index, so the hand ends a landing when the box changes.</param>
+    internal sealed record StorageScene(
+        IReadOnlyList<Domain.SlotSummary> Slots,
+        int Selected,
+        int? CarryOrigin,
+        Domain.SlotSummary? Carried,
+        bool Marking,
+        Func<int, bool> IsMarked,
+        Func<int, bool?> RangeMark,
+        int Box,
+        IReadOnlySet<int>? Locked = null,
+        IReadOnlyDictionary<int, bool>? Verdicts = null,
+        bool BdspStyle = false);
+
+    /// <summary>
     /// Paints the save box: the well, each Pokémon standing on its row's ground line (the
     /// Showdown icon; PKHeX's shiny art sized to that icon for shinies), and the cursor as a
     /// light pool under the selected Pokémon, lifted, with the pixel pointer above it.
@@ -115,23 +138,47 @@ public static class BoxGridRenderer
         CarryHand? hand = null,
         (SKImage Art, SKColor Average)? wallpaper = null)
     {
+        var scene = new StorageScene(
+            viewModel.VisibleSlots,
+            viewModel.SelectedSlot,
+            viewModel.CarrySource is { } source && source.Box == viewModel.BoxIndex ? source.Slot : null,
+            viewModel.CarrySource is not null ? viewModel.CarriedSummary : null,
+            viewModel.SelectMode,
+            // Marks show only while multi-select is on, as before.
+            index => viewModel.SelectMode && viewModel.IsMarked(viewModel.BoxIndex, index),
+            index => viewModel.PendingRectangle is { } range && viewModel.InPendingRectangle(index) ? range.Mark : null,
+            viewModel.BoxIndex,
+            lockedSlots,
+            viewModel.CurrentBoxLegality,
+            // BDSP and Luminescent Platinum boxes wear the BDSP-style icons once downloaded.
+            Domain.BdspIcons.AppliesTo(viewModel.Save?.Format));
+        PaintScene(canvas, info, scene, sprites, invalidate, hand, (c, well, unit) =>
+        {
+            // The box's own wallpaper from the game, toned down in the player's chosen style.
+            if (wallpaper is { } art) StoragePaint.Wallpaper(c, well, art.Art, art.Average, BoxBackground.Style, unit);
+        });
+    }
+
+    /// <summary>Paints any box in the storage look; <paramref name="backdrop"/> draws its wallpaper inside the well.</summary>
+    internal static void PaintScene(SKCanvas canvas, SKImageInfo info, StorageScene scene, ISpriteService sprites,
+        Action invalidate, CarryHand? hand, Action<SKCanvas, SKRect, float>? backdrop = null)
+    {
         var layout = StorageMetrics(new SKSize(info.Width, info.Height));
         var unit = layout.Unit;
         canvas.Clear(SKColors.Transparent);
         var well = new SKRect(0, 0, info.Width, info.Height);
         StoragePaint.WellPanel(canvas, well, unit);
-        // The box's own wallpaper from the game, toned down in the player's chosen style.
-        if (wallpaper is { } art) StoragePaint.Wallpaper(canvas, well, art.Art, art.Average, BoxBackground.Style, unit);
-        // BDSP and Luminescent Platinum boxes wear the BDSP-style icons once downloaded.
-        var bdspStyle = Domain.BdspIcons.AppliesTo(viewModel.Save?.Format);
-        var marking = viewModel.SelectMode;
+        backdrop?.Invoke(canvas, well, unit);
+        var bdspStyle = scene.BdspStyle;
+        var marking = scene.Marking;
+        var lockedSlots = scene.Locked;
 
         using var font = new SKFont { Size = layout.CellHeight * 0.15f, Edging = SKFontEdging.Antialias };
         using var star = new SKFont(BoxBrowserPage.PixelTypeface(), 28f * unit);
         var ink = new Ink(font, StoragePaint.Well);
 
-        var slots = viewModel.VisibleSlots;
-        var verdicts = viewModel.CurrentBoxLegality;
+        var slots = scene.Slots;
+        var verdicts = scene.Verdicts;
 
         for (var index = 0; index < Columns * Rows; index++)
         {
@@ -140,9 +187,8 @@ public static class BoxGridRenderer
             var tile = SKRect.Create(cell.MidX - layout.CellHeight / 2, cell.Top, layout.CellHeight, layout.CellHeight);
 
             var occupied = index < slots.Count && slots[index].Species is not null;
-            var isCarryOrigin = viewModel.CarrySource is { } source
-                && source.Box == viewModel.BoxIndex && source.Slot == index;
-            var selected = index == viewModel.SelectedSlot;
+            var isCarryOrigin = scene.CarryOrigin == index;
+            var selected = index == scene.Selected;
 
             if (selected) StoragePaint.CursorPool(canvas, cell, unit, marking ? Pksm.CursorGreen : null);
             var lift = selected ? StoragePaint.CursorLift * unit : 0f;
@@ -163,10 +209,10 @@ public static class BoxGridRenderer
                 }
             }
 
-            if (viewModel.PendingRectangle is { } range && viewModel.InPendingRectangle(index))
-                PksmPaint.RangeWash(canvas, SKRect.Inflate(cell, -4f * unit, -4f * unit), range.Mark);
+            if (scene.RangeMark(index) is { } mark)
+                PksmPaint.RangeWash(canvas, SKRect.Inflate(cell, -4f * unit, -4f * unit), mark);
 
-            if (selected && hand is null && viewModel.CarriedSummary is { } carried && viewModel.CarrySource is not null)
+            if (selected && hand is null && scene.Carried is { } carried)
                 DrawStanding(canvas, cell, unit, layout.CellHeight * 0.18f, carried, sprites, invalidate, ink, bdspStyle);
 
             if (occupied && !isCarryOrigin && slots[index].IsShiny)
@@ -181,22 +227,20 @@ public static class BoxGridRenderer
             if (occupied && verdicts is not null && verdicts.TryGetValue(index, out var legal))
                 DrawLegalityDot(canvas, tile, legal);
 
-            if (marking && occupied && viewModel.IsMarked(viewModel.BoxIndex, index))
+            if (occupied && scene.IsMarked(index))
                 PksmPaint.MarkBadge(canvas, tile);
         }
 
-        if ((uint)viewModel.SelectedSlot >= (uint)(Columns * Rows)) return;
-        var cursor = layout.Cell(viewModel.SelectedSlot);
+        if ((uint)scene.Selected >= (uint)(Columns * Rows)) return;
+        var cursor = layout.Cell(scene.Selected);
 
         // The Pokémon in hand glides from slot to slot under the pointer.
         if (hand is not null)
         {
-            var carrying = viewModel.CarriedSummary is not null && viewModel.CarrySource is not null;
-            var origin = viewModel.CarrySource is { } from && from.Box == viewModel.BoxIndex && (uint)from.Slot < (uint)(Columns * Rows)
-                ? layout.Cell(from.Slot)
-                : cursor;
-            hand.Sync(carrying, origin, cursor, viewModel.SelectedSlot, viewModel.BoxIndex);
-            var held = viewModel.CarriedSummary;
+            var carrying = scene.Carried is not null;
+            var origin = scene.CarryOrigin is { } from && (uint)from < (uint)(Columns * Rows) ? layout.Cell(from) : cursor;
+            hand.Sync(carrying, origin, cursor, scene.Selected, scene.Box);
+            var held = scene.Carried;
             if (hand.Draw(canvas, layout.CellHeight,
                     (c, r) => { if (held is not null) DrawStanding(c, r, unit, 0f, held, sprites, invalidate, ink, bdspStyle); },
                     (c, r) => StoragePaint.Pointer(c, r, unit, marking)))
