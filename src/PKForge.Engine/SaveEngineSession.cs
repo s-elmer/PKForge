@@ -689,7 +689,7 @@ public sealed class SaveEngineSession : ISaveEngineSession
                 if (mon.Species != 0) mons.Add(mon.Clone());
             }
 
-        int TypeRank(PKM mon) => mon.PersonalInfo.Type1; // dex type order runs types 0..17
+        int TypeRank(PKM mon) => PersonalTypes.First(mon.PersonalInfo); // dex type order runs types 0..17
         int MetAge(PKM mon) => mon.MetDate?.DayNumber is { } day ? int.MaxValue - Math.Min(day, int.MaxValue - 1) : int.MaxValue;
 
         mons = criteria switch
@@ -2522,8 +2522,7 @@ public sealed class SaveEngineSession : ISaveEngineSession
 
     private int[] GetTypes(ushort species, byte form)
     {
-        var personal = _save.Personal.GetFormEntry(species, form);
-        return personal.Type1 == personal.Type2 ? [personal.Type1] : [personal.Type1, personal.Type2];
+        return PersonalTypes.Of(_save.Personal.GetFormEntry(species, form));
     }
 
     public ReadOnlyMemory<byte> Serialize()

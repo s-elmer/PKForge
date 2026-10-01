@@ -299,7 +299,7 @@ public sealed class MonInfoService : IMonInfoService
             return new SpeciesCard(species, form, session.GetSpeciesTypes(species), session.GetBaseStats(species), abilities, null);
 
         var p = engine.SaveFile.Personal.GetFormEntry((ushort)species, (byte)Math.Max(0, form));
-        IReadOnlyList<int> types = p.Type1 == p.Type2 ? [p.Type1] : [p.Type1, p.Type2];
+        IReadOnlyList<int> types = PersonalTypes.Of(p);
         return new SpeciesCard(species, form, types, new BaseStats(p.HP, p.ATK, p.DEF, p.SPA, p.SPD, p.SPE),
             abilities, engine.Generation >= 2 ? new GenderRatio(p.Gender) : null);
     }
