@@ -832,16 +832,8 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
         {
             IsBusy = true;
             engineSession.MoveSlot(source.Box, source.Slot, target.Box, target.Slot);
-            var candidate = engineSession.Serialize();
-            var receipt = await _writer.WriteScopedAsync(session.Document.DocumentId, session.Snapshot, candidate,
-                WriteScope.Only(new SlotRef(source.Box, source.Slot), new SlotRef(target.Box, target.Slot)),
-                $"Move {(carried is { } summary ? summary.Nickname ?? $"#{summary.Species}" : "Pokémon")}: {SlotLabel(source.Box, source.Slot)} -> {SlotLabel(target.Box, target.Slot)}");
-            if (receipt.Changed)
-            {
-                _sessions.MarkWritten(session.Document.DocumentId, candidate);
-                BumpMutationGeneration();
-            }
-            // Refresh both touched slots in the grid model.
+            // Show the move at once: the grid would otherwise keep the old slots until the
+            // write below returns, the Pokémon drawn in both places and then gone from one.
             foreach (var (box, slot) in new[] { (source.Box, source.Slot), (target.Box, target.Slot) })
             {
                 var updated = engineSession.ReadEntity(box, slot);
@@ -857,6 +849,15 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
                     };
             }
             OnPropertyChanged(nameof(VisibleSlots));
+            var candidate = engineSession.Serialize();
+            var receipt = await _writer.WriteScopedAsync(session.Document.DocumentId, session.Snapshot, candidate,
+                WriteScope.Only(new SlotRef(source.Box, source.Slot), new SlotRef(target.Box, target.Slot)),
+                $"Move {(carried is { } summary ? summary.Nickname ?? $"#{summary.Species}" : "Pokémon")}: {SlotLabel(source.Box, source.Slot)} -> {SlotLabel(target.Box, target.Slot)}");
+            if (receipt.Changed)
+            {
+                _sessions.MarkWritten(session.Document.DocumentId, candidate);
+                BumpMutationGeneration();
+            }
             SelectSlot(target.Slot);
             Status = receipt.Changed
                 ? $"MOVED · restore point {ShortBackupId(receipt)}"

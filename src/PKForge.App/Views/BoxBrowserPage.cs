@@ -3651,7 +3651,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
 
         if (_viewModel.CarrySource is { } source)
         {
-            // Party swap between two Pokémon: the cards trade places once the write lands.
+            // Party swap between two Pokémon: the cards slide past each other as they trade places.
             var target = _viewModel.SelectedSlot;
             var partySwap = _viewModel.BoxIndex == -1 && source.Box == -1 && target != source.Slot
                 && PartyHasMon(source.Slot) && PartyHasMon(target);
@@ -3673,8 +3673,12 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
 
     private async Task DropAndRepaintAsync((int From, int To)? partySwap = null)
     {
-        await _viewModel.DropAsync();
+        // The move and the grid refresh happen before the drop's first await (the write), so
+        // the swap animation starts with them rather than after the save is written.
+        var drop = _viewModel.DropAsync();
         if (partySwap is { } swap) PartyView.BeginSwap(swap.From, swap.To);
+        _canvas.InvalidateSurface();
+        await drop;
         _canvas.InvalidateSurface();
     }
 

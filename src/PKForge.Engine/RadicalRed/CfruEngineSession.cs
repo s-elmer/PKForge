@@ -450,6 +450,18 @@ internal class CfruEngineSession : ISaveEngineSession
         source.Buffer.AsSpan(source.Offset, source.Size).CopyTo(sourceBytes);
         var sourceView = new RadicalRedMon(sourceBytes, 0, source.Party, Game);
 
+        if (fromBox == -1 && toBox == -1 && (uint)toSlot < (uint)PartyCount)
+        {
+            // Inside the party, onto another Pokémon: the two swap places, as in the games.
+            var from = _data.AsSpan(PartyBase + PartyOffset + fromSlot * PartyMonSize, PartyMonSize);
+            var to = _data.AsSpan(PartyBase + PartyOffset + toSlot * PartyMonSize, PartyMonSize);
+            var held = from.ToArray();
+            to.CopyTo(from);
+            held.CopyTo(to);
+            CommitSection(PartySection);
+            return;
+        }
+
         if (toBox == -1)
         {
             // Moving into the party appends, exactly like the games.

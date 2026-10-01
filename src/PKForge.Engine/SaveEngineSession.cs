@@ -556,15 +556,20 @@ public sealed class SaveEngineSession : ISaveEngineSession
 
         if (fromBox == -1 && toBox == -1)
         {
-            // Reorder inside the party: remove at the source, insert at the target
-            // (occupied target = swap feel, empty target = move there). Works for any
-            // target index 0-5, no out-of-range possible on a compacted party.
+            // Reorder inside the party as the games do: onto a Pokémon, the two swap; onto an
+            // empty slot, the Pokémon moves to the end, so the party stays packed.
             var party = _save.PartyData.ToList();
             if ((uint)fromSlot >= party.Count) return;
-            var moving = party[fromSlot];
-            party.RemoveAt(fromSlot);
-            toSlot = Math.Min(toSlot, party.Count);
-            party.Insert(toSlot, moving);
+            if (toSlot < party.Count)
+            {
+                (party[fromSlot], party[toSlot]) = (party[toSlot], party[fromSlot]);
+            }
+            else
+            {
+                var moving = party[fromSlot];
+                party.RemoveAt(fromSlot);
+                party.Add(moving);
+            }
             WriteParty(party);
             return;
         }

@@ -57,6 +57,27 @@ public sealed class CfruBankRoundTripTests : IDisposable
 
     [Theory]
     [MemberData(nameof(Saves))]
+    public void PartyPokemonSwapPlacesInAFullParty(string file, string format)
+    {
+        if (Demo(file) is not { } bytes) return;
+        using var session = _engine.OpenSession(bytes, file);
+        var party = Occupied(session).Where(image => image.Slot.Box == -1).OrderBy(image => image.Slot.Slot).ToList();
+        if (party.Count < 2) return;
+        Assert.Equal(format, session.ExportSlot(-1, 0).Format);
+        var last = party[^1].Slot.Slot;
+
+        // The first and the last Pokémon trade places byte for byte; the others stay put,
+        // even with six in the party (moving to the end used to be refused as "full").
+        session.MoveSlot(-1, 0, -1, last);
+        Assert.Equal(party[^1].Bytes, SlotBytes(session, new SlotRef(-1, 0)));
+        Assert.Equal(party[0].Bytes, SlotBytes(session, new SlotRef(-1, last)));
+        for (var i = 1; i < party.Count - 1; i++)
+            Assert.Equal(party[i].Bytes, SlotBytes(session, party[i].Slot));
+        Assert.Equal(party.Count, Occupied(session).Count(image => image.Slot.Box == -1));
+    }
+
+    [Theory]
+    [MemberData(nameof(Saves))]
     public void EveryMonDepositsInTheBank(string file, string format)
     {
         if (Demo(file) is not { } bytes) return;
