@@ -251,6 +251,7 @@ public sealed class RadicalRedSessionTests
         Assert.Equal(70, generated.Level);
         using var reopened = new RadicalRedEngineSession(session.Serialize());
         Assert.Equal(150, reopened.ReadEntity(7, 1).Species);
+        Assert.Equal("Mewtwo", reopened.ReadEntity(7, 1).Nickname); // named like a caught one
     }
 
     [Fact]

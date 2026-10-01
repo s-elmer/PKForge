@@ -767,6 +767,9 @@ internal class CfruEngineSession : ISaveEngineSession
         mon.IVs = [31, 31, 31, 31, 31, 31];
         mon.Ball = ball is { } wanted && RadicalRedMon.TryStoreBall(wanted, out var cfru) ? cfru : 3;
         WriteOtName(mon, trainer.Name.Length > 0 ? trainer.Name : "PKForge");
+        // A caught Pokémon carries its species name as its nickname, padded with terminators.
+        mon.Buffer.AsSpan(mon.Offset + 8, 10).Fill(0xFF);
+        mon.Nickname = Game.SpeciesName(species);
 
         if (nature is { } wantedNature)
             RerollPid(mon, nature: wantedNature);
