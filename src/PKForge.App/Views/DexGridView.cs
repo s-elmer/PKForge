@@ -38,12 +38,7 @@ public sealed class DexGridView : SKCanvasView
     private float _contentHeight, _unit = 1, _laidOutWidth = -1;
 
     private float _scroll;
-    private SKPoint _touchStart;
-    private float _touchStartScroll;
-    private bool _dragging;
-    private readonly List<(long Ms, float Y)> _trail = [];
-    private IDispatcherTimer? _fling;
-    private float _velocity; // canvas pixels per ms
+    private readonly TouchScroller _scroller;
 
     /// <summary>A species was tapped (its index in the list).</summary>
     public event Action<int>? Tapped;
@@ -57,7 +52,13 @@ public sealed class DexGridView : SKCanvasView
         EnableTouchEvents = true;
         PaintSurface += OnPaint;
         Touch += OnTouch;
+        // Drag, flick with momentum, and a thumb you can grab, in canvas pixels.
+        _scroller = new TouchScroller(Dispatcher, () => _scroll, ScrollTo, () => MaxScroll, () => CanvasSize.Height, Track,
+            slop: 10 * _unit, grabWidth: 40 * _unit);
     }
+
+    /// <summary>The scrollbar's track along the right edge, in canvas pixels.</summary>
+    private SKRect Track() => new(CanvasSize.Width - 16 * _unit, 10 * _unit, CanvasSize.Width - 6 * _unit, CanvasSize.Height - 10 * _unit);
 
     public int Cursor => _cursor;
     public int Count => _ids.Count;
@@ -287,10 +288,13 @@ public sealed class DexGridView : SKCanvasView
 
         if (MaxScroll > 0)
         {
-            var length = Math.Max(40 * _unit, args.Info.Height * args.Info.Height / _contentHeight);
-            var y = _scroll / MaxScroll * (args.Info.Height - length);
-            using var thumb = new SKPaint { Color = SKColors.White.WithAlpha(0x70), IsAntialias = true };
-            c.DrawRoundRect(new SKRect(args.Info.Width - 12 * _unit, y, args.Info.Width - 6 * _unit, y + length), 3 * _unit, 3 * _unit, thumb);
+            var held = _scroller.HoldingThumb;
+            var thumbRect = _scroller.Thumb();
+            if (held) thumbRect = new SKRect(thumbRect.Left - 6 * _unit, thumbRect.Top, thumbRect.Right, thumbRect.Bottom);
+            using var track = new SKPaint { Color = StoragePaint.Well.WithAlpha(0xB0), IsAntialias = true };
+            using var thumb = new SKPaint { Color = held ? EditorPaint.Cyan : SKColors.White.WithAlpha(0x80), IsAntialias = true };
+            c.DrawRoundRect(Track(), 5 * _unit, 5 * _unit, track);
+            c.DrawRoundRect(thumbRect, 5 * _unit, 5 * _unit, thumb);
         }
     }
 
@@ -321,41 +325,14 @@ public sealed class DexGridView : SKCanvasView
         c.DrawLine(cx - r * 0.1f, cy + r * 0.4f, cx + r * 0.5f, cy - r * 0.35f, check);
     }
 
-    // ── Touch: drag and fling scroll, tap to pick ───────────────────────────
+    // ── Touch: drag and fling scroll, the thumb, tap to pick ────────────────
 
     private void OnTouch(object? sender, SKTouchEventArgs args)
     {
         args.Handled = true;
-        var now = Environment.TickCount64;
-        switch (args.ActionType)
-        {
-            case SKTouchAction.Pressed:
-                _fling?.Stop();
-                _touchStart = args.Location;
-                _touchStartScroll = _scroll;
-                _dragging = false;
-                _trail.Clear();
-                _trail.Add((now, args.Location.Y));
-                break;
-            case SKTouchAction.Moved:
-                var dy = args.Location.Y - _touchStart.Y;
-                if (!_dragging && Math.Abs(dy) > 10 * _unit) _dragging = true;
-                if (_dragging)
-                {
-                    ScrollTo(_touchStartScroll - dy);
-                    _trail.Add((now, args.Location.Y));
-                    if (_trail.Count > 6) _trail.RemoveAt(0);
-                }
-                break;
-            case SKTouchAction.Released:
-                if (_dragging) StartFling(now);
-                else TapAt(args.Location);
-                _dragging = false;
-                break;
-            case SKTouchAction.Cancelled:
-                _dragging = false;
-                break;
-        }
+        EnsureLayout();
+        if (_scroller.Handle(args.ActionType, args.Location) is { } tap) TapAt(tap);
+        else if (args.ActionType is SKTouchAction.Pressed or SKTouchAction.Released) InvalidateSurface();
     }
 
     private void TapAt(SKPoint location)
@@ -367,26 +344,5 @@ public sealed class DexGridView : SKCanvasView
         CursorChanged?.Invoke(index);
         InvalidateSurface();
         Tapped?.Invoke(index);
-    }
-
-    private void StartFling(long now)
-    {
-        var recent = _trail.Where(t => now - t.Ms <= 100).ToList();
-        if (recent.Count < 2 || recent[^1].Ms == recent[0].Ms) return;
-        _velocity = -(recent[^1].Y - recent[0].Y) / (recent[^1].Ms - recent[0].Ms);
-        if (Math.Abs(_velocity) < 0.2f) return;
-        if (_fling is null)
-        {
-            _fling = Dispatcher.CreateTimer();
-            _fling.Interval = TimeSpan.FromMilliseconds(16);
-            _fling.Tick += (_, _) =>
-            {
-                var target = _scroll + _velocity * 16;
-                _velocity *= 0.94f;
-                if (target <= 0 || target >= MaxScroll || Math.Abs(_velocity) < 0.05f) _fling!.Stop();
-                ScrollTo(target);
-            };
-        }
-        _fling.Start();
     }
 }

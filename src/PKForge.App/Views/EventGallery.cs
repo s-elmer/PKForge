@@ -463,6 +463,9 @@ public static class EventGallery
             _list = new SKCanvasView { EnableTouchEvents = true };
             _list.PaintSurface += PaintList;
             _list.Touch += OnListTouch;
+            // Drag, flick with momentum, and a thumb you can grab: the album is long.
+            _scroller = new TouchScroller(_list.Dispatcher, () => _scroll, offset => { _scroll = offset; _list.InvalidateSurface(); },
+                () => Math.Max(0, _contentH - _viewH), () => _viewH, () => _track, slop: 8, grabWidth: 28);
 
             _preview = new SKCanvasView { EnableTouchEvents = true };
             _preview.PaintSurface += PaintPreview;
@@ -774,16 +777,17 @@ public static class EventGallery
                 PaintRow(c, new SKRect(left, y, right, y + RowH), line.Item, title, small, tagFont, ink, soft, stripe);
             }
 
-            // Scrollbar: a slim cobalt thumb showing where in the album we are.
+            // Scrollbar: a thumb showing where in the album we are, and a handle to drag through it.
+            _track = new SKRect(panel.Right - 10, panel.Top + 6, panel.Right - 4, panel.Bottom - 6);
             if (_contentH > _viewH)
             {
-                var track = new SKRect(panel.Right - 7, panel.Top + 6, panel.Right - 4, panel.Bottom - 6);
-                var thumbH = Math.Max(18, track.Height * _viewH / _contentH);
-                var thumbY = track.Top + (track.Height - thumbH) * (_scroll / Math.Max(1, _contentH - _viewH));
+                var held = _scroller.HoldingThumb;
+                var thumbRect = _scroller.Thumb();
+                if (held) thumbRect = new SKRect(thumbRect.Left - 4, thumbRect.Top, thumbRect.Right, thumbRect.Bottom);
                 using var trackPaint = new SKPaint { Color = Pksm.LogoVoid.WithAlpha(0x90), IsAntialias = true };
-                using var thumb = new SKPaint { Color = Pksm.LogoCyan.WithAlpha(0xC0), IsAntialias = true };
-                c.DrawRoundRect(track, 1.5f, 1.5f, trackPaint);
-                c.DrawRoundRect(new SKRect(track.Left, thumbY, track.Right, thumbY + thumbH), 1.5f, 1.5f, thumb);
+                using var thumb = new SKPaint { Color = Pksm.LogoCyan.WithAlpha(held ? (byte)0xFF : (byte)0xC0), IsAntialias = true };
+                c.DrawRoundRect(_track, 3, 3, trackPaint);
+                c.DrawRoundRect(thumbRect, 3, 3, thumb);
             }
             c.Restore();
         }
@@ -818,45 +822,28 @@ public static class EventGallery
             Text(c, Fit(small, line2, status - textLeft - (e.Received ? 22 : e.Compatible ? 4 : 70)), textLeft, r.Top + 37, SKTextAlign.Left, small, soft);
         }
 
-        private float _touchStartY, _scrollStart;
-        private bool _dragging;
+        private TouchScroller _scroller = null!;
+        private SKRect _track;
 
         private void OnListTouch(object? sender, SKTouchEventArgs args)
         {
             args.Handled = true;
-            var y = args.Location.Y / Density;
-            switch (args.ActionType)
+            var point = new SKPoint(args.Location.X / Density, args.Location.Y / Density);
+            if (args.ActionType == SKTouchAction.WheelChanged)
             {
-                case SKTouchAction.Pressed:
-                    _touchStartY = y;
-                    _scrollStart = _scroll;
-                    _dragging = false;
-                    return;
-                case SKTouchAction.Moved:
-                    if (!_dragging && Math.Abs(y - _touchStartY) > 8) _dragging = true;
-                    if (_dragging)
-                    {
-                        _scroll = _scrollStart - (y - _touchStartY);
-                        ClampScroll();
-                        _list.InvalidateSurface();
-                    }
-                    return;
-                case SKTouchAction.Released:
-                    if (_dragging) { _dragging = false; return; }
-                    var contentY = y + _scroll;
-                    foreach (var line in _lines)
-                    {
-                        if (line.Item < 0 || contentY < line.Y || contentY > line.Y + line.H) continue;
-                        if (line.Item == _index) OpenCard();
-                        else Select(line.Item);
-                        return;
-                    }
-                    return;
-                case SKTouchAction.WheelChanged:
-                    _scroll -= args.WheelDelta / Density;
-                    ClampScroll();
-                    _list.InvalidateSurface();
-                    return;
+                _scroll -= args.WheelDelta / Density;
+                ClampScroll();
+                _list.InvalidateSurface();
+                return;
+            }
+            if (_scroller.Handle(args.ActionType, point) is not { } tap) return;
+            var contentY = tap.Y + _scroll;
+            foreach (var line in _lines)
+            {
+                if (line.Item < 0 || contentY < line.Y || contentY > line.Y + line.H) continue;
+                if (line.Item == _index) OpenCard();
+                else Select(line.Item);
+                return;
             }
         }
 
