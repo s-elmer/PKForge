@@ -7,11 +7,12 @@ using SkiaSharp;
 namespace PKForge.App.Views;
 
 /// <summary>
-/// The party view (box -1), laid out like the games' own party screen: two staggered
-/// columns of rounded cards joined by a circuit trace. Each card carries a Poké Ball
-/// plate behind the Pokémon's box sprite, the nickname and gender, an HP tag and bar,
-/// the level and the HP numbers. Empty slots are striped recesses; fainted cards turn
-/// rust. Live state from the session.
+/// The party view (box -1), after Black and White's party screen: two staggered columns
+/// of octagonal panels with a bright cyan rim and one light diagonal band, joined by a
+/// trace, over a grid with a node at every crossing. Each panel carries the Pokémon's box
+/// sprite, its nickname and gender, "HP" in green and the bar, the level and the HP
+/// numbers; a status shows as the games' tag under the sprite. The selected panel turns a
+/// brighter blue, a fainted one rust. Live state from the session.
 /// </summary>
 public static class PartyView
 {
@@ -24,38 +25,29 @@ public static class PartyView
     private static SKFont? _smallFont;
     private static SKFont? _labelFont;
 
-    private static readonly SKColor Bg = Pksm.LogoVoid;
-    private static readonly SKColor BgLine = Pksm.LogoDeck;
-    private static readonly SKColor Trace = Pksm.LogoBlue.WithAlpha(0xC8);
-    private static readonly SKColor BodyTop = new(0x2F, 0x5B, 0xB0);
-    private static readonly SKColor BodyBottom = new(0x1F, 0x3C, 0x7C);
-    private static readonly SKColor SelectedTop = new(0x3C, 0x71, 0xCC);
-    private static readonly SKColor SelectedBottom = new(0x2A, 0x4E, 0x98);
-    private static readonly SKColor Edge = Pksm.LogoBlue;
-    private static readonly SKColor Gloss = SKColors.White.WithAlpha(0x1C);
-    private static readonly SKColor EmptyBody = Pksm.LogoDeep;
-    private static readonly SKColor EmptyStripe = Pksm.LogoDeck;
-    private static readonly SKColor EmptyEdge = Pksm.LogoGrid.WithAlpha(0x90);
-    private static readonly SKColor FaintTop = new(0x6A, 0x36, 0x2C);
-    private static readonly SKColor FaintBottom = new(0x42, 0x22, 0x1C);
-    private static readonly SKColor FaintEdge = new(0xA0, 0x5A, 0x44);
-    private static readonly SKColor Track = Pksm.LogoVoid;
-    private static readonly SKColor HpTag = Pksm.Legal;
-    private static readonly SKColor TextShadow = Pksm.LogoVoid.WithAlpha(0xC0);
-    private static readonly SKColor Selected = Pksm.LogoCyan;
-    private static readonly SKColor Cursor = Pksm.Ink;
-    private const byte BallAlpha = 0x48;
+    private static readonly SKColor GridTop = new(0x06, 0x0C, 0x1C);
+    private static readonly SKColor GridLine = StoragePaint.FrameEdge.WithAlpha(0x78);
+    private static readonly SKColor GridNode = StoragePaint.FrameEdge.WithAlpha(0xC8);
+    private static readonly SKColor Rim = new(0x6C, 0xDE, 0xF6);
+    private static readonly SKColor RimDark = new(0x0C, 0x1A, 0x34);
+    private static readonly SKColor Trace = Rim.WithAlpha(0x8C);
+    private static readonly SKColor Body = new(0x2A, 0x4C, 0x7E);
+    private static readonly SKColor BodyBand = new(0x36, 0x5E, 0x96);
+    private static readonly SKColor SelectedBody = new(0x2E, 0x6C, 0xB8);
+    private static readonly SKColor SelectedBand = new(0x3C, 0x82, 0xCC);
+    private static readonly SKColor FaintBody = new(0x5A, 0x2A, 0x2E);
+    private static readonly SKColor FaintBand = new(0x6A, 0x36, 0x38);
+    private static readonly SKColor EmptyBody = RimDark.WithAlpha(0xB0);
+    private static readonly SKColor EmptyRim = StoragePaint.FrameEdge;
+    private static readonly SKColor HpLabel = new(0x6C, 0xE8, 0x5C);
+    private static readonly SKColor Track = new(0x30, 0x34, 0x40);
+    private static readonly SKColor TextShadow = new(0x08, 0x10, 0x24);
+    private static readonly SKColor Ghost = Rim.WithAlpha(0x70);
 
     public static void Paint(SKCanvas canvas, SKImageInfo info, ISpriteService sprites, ISaveEngineSession? session, int selectedSlot, Action invalidate, (int Box, int Slot)? carrySource = null, float pulsePhase = 0f,
         Func<int, bool>? isMarked = null, Func<int, bool?>? rangeMark = null)
     {
-        using (var bg = new SKPaint { Color = Bg })
-            canvas.DrawRect(new SKRect(0, 0, info.Width, info.Height), bg);
-        using (var line = new SKPaint { Color = BgLine, StrokeWidth = 1 })
-        {
-            for (float x = 0; x < info.Width; x += 32) canvas.DrawLine(x, 0, x, info.Height, line);
-            for (float y = 0; y < info.Height; y += 32) canvas.DrawLine(0, y, info.Width, y, line);
-        }
+        NodeGrid(canvas, info);
         DrawTrace(canvas, info);
 
         var swapping = SwapProgress();
@@ -158,6 +150,26 @@ public static class PartyView
         return new SKRect(x, y, x + g.Width, y + g.Height);
     }
 
+    /// <summary>The DS's grid behind the party: thin lines with a node at every crossing,
+    /// over a dark fall from the top.</summary>
+    private static void NodeGrid(SKCanvas canvas, SKImageInfo info)
+    {
+        using (var bg = new SKPaint
+        {
+            Shader = SKShader.CreateLinearGradient(new SKPoint(0, 0), new SKPoint(0, info.Height), [GridTop, StoragePaint.Well], SKShaderTileMode.Clamp),
+        })
+            canvas.DrawRect(new SKRect(0, 0, info.Width, info.Height), bg);
+        var step = MathF.Round(info.Height / 8f);
+        var start = MathF.Round(step * 0.25f);
+        using var line = new SKPaint { Color = GridLine, StrokeWidth = MathF.Max(1, step / 44) };
+        using var node = new SKPaint { Color = GridNode, IsAntialias = true };
+        for (var x = start; x < info.Width; x += step) canvas.DrawLine(x, 0, x, info.Height, line);
+        for (var y = start; y < info.Height; y += step) canvas.DrawLine(0, y, info.Width, y, line);
+        for (var x = start; x < info.Width; x += step)
+            for (var y = start; y < info.Height; y += step)
+                canvas.DrawCircle(x, y, step / 18, node);
+    }
+
     /// <summary>The circuit trace behind the cards: a spine in the column gap that jogs
     /// between the two columns, with a stub into every card.</summary>
     private static void DrawTrace(SKCanvas canvas, SKImageInfo info)
@@ -188,174 +200,169 @@ public static class PartyView
 
     private static void Slot(SKCanvas canvas, SKRect r, EntityDetail? detail, ISpriteService sprites, bool selected, Action invalidate, bool lifted = false)
     {
-        var radius = r.Height * 0.14f;
         var empty = detail is null or { IsEmpty: true };
         var fainted = detail is { IsEmpty: false, CurrentHp: 0 };
+        var unit = r.Height / 150f;
 
         if (lifted)
         {
-            using var carryGhost = new SKPaint { Color = Selected.WithAlpha(0x70), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 2 };
-            carryGhost.PathEffect = SKPathEffect.CreateDash([7, 6], 0);
-            canvas.DrawRoundRect(r, radius, radius, carryGhost);
+            // The carried Pokémon's panel stays, outlined, a little inset.
+            using var outline = Octagon(r);
+            using var ghost = new SKPaint { Color = Ghost, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 2, PathEffect = SKPathEffect.CreateDash([7, 6], 0) };
+            canvas.DrawPath(outline, ghost);
             r = SKRect.Inflate(r, 2, -4);
         }
 
         if (empty)
         {
             if (detail is null) return;
-            EmptySlot(canvas, r, radius, selected);
+            EmptySlot(canvas, r, selected);
             return;
         }
 
-        // Card body: a vertical gradient with a light diagonal band, then its edge.
-        var top = fainted ? FaintTop : selected ? SelectedTop : BodyTop;
-        var bottom = fainted ? FaintBottom : selected ? SelectedBottom : BodyBottom;
-        using (var drop = new SKPaint { Color = Pksm.LogoVoid.WithAlpha(0xC0), IsAntialias = true })
-            canvas.DrawRoundRect(new SKRect(r.Left, r.Top + 4, r.Right, r.Bottom + 4), radius, radius, drop);
-        using (var body = new SKPaint { IsAntialias = true })
-        {
-            body.Shader = SKShader.CreateLinearGradient(new SKPoint(0, r.Top), new SKPoint(0, r.Bottom), [top, bottom], SKShaderTileMode.Clamp);
-            canvas.DrawRoundRect(r, radius, radius, body);
-        }
-        canvas.Save();
-        using (var clip = new SKPath())
-        {
-            clip.AddRoundRect(r, radius, radius);
-            canvas.ClipPath(clip, antialias: true);
-            using var band = new SKPath();
-            band.MoveTo(r.Left + r.Width * 0.58f, r.Top);
-            band.LineTo(r.Left + r.Width * 0.80f, r.Top);
-            band.LineTo(r.Left + r.Width * 0.66f, r.Bottom);
-            band.LineTo(r.Left + r.Width * 0.44f, r.Bottom);
-            band.Close();
-            using var gloss = new SKPaint { Color = Gloss, IsAntialias = true };
-            canvas.DrawPath(band, gloss);
-            using var light = new SKPaint { Color = SKColors.White.WithAlpha(0x30), StrokeWidth = 2 };
-            canvas.DrawLine(r.Left + radius, r.Top + 2, r.Right - radius, r.Top + 2, light);
-        }
-        canvas.Restore();
-        using (var edge = new SKPaint { Color = fainted ? FaintEdge : Edge, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 2 })
-            canvas.DrawRoundRect(SKRect.Inflate(r, -1, -1), radius, radius, edge);
+        Panel(canvas, r, fainted ? FaintBody : selected ? SelectedBody : Body, fainted ? FaintBand : selected ? SelectedBand : BodyBand);
 
-        // The box sprite in the card's left third, its ball faint behind it.
-        var ballRadius = r.Height * 0.30f;
-        var ballCenter = new SKPoint(r.Left + r.Height * 0.32f, r.Top + r.Height * 0.36f);
-        // The Pokémon's own ball, faint behind the sprite: it follows ball edits.
-        var ballSprite = sprites.GetBall(detail!.Ball);
-        if (ballSprite is not null)
-            BallPlate(canvas, ballSprite, ballCenter, ballRadius * 1.05f, fainted);
-        else
-            sprites.WarmBall(detail.Ball, invalidate);
-        var bitmap = sprites.GetSprite(detail.Look);
+        // The box sprite in the panel's top-left corner, the status tag under it.
+        var spriteArea = SKRect.Create(r.Left + 14 * unit, r.Top + 4 * unit, 100 * unit, 88 * unit);
+        var bitmap = sprites.GetSprite(detail!.Look);
         if (bitmap is not null)
         {
-            var target = r.Height * 0.62f;
-            var scale = MathF.Max(1f, MathF.Floor(target / MathF.Max(bitmap.Width, bitmap.Height) * 2f) / 2f);
+            var scale = MathF.Max(1f, MathF.Floor(MathF.Min(spriteArea.Width / bitmap.Width, spriteArea.Height / bitmap.Height) * 2f) / 2f);
             var w = bitmap.Width * scale;
             var h = bitmap.Height * scale;
-            var spriteBottom = ballCenter.Y + ballRadius * 0.9f;
             using var paint = new SKPaint();
             if (fainted) paint.ColorFilter = SKColorFilter.CreateBlendMode(new SKColor(0x70, 0x50, 0x48), SKBlendMode.SrcIn);
             using var image = SKImage.FromBitmap(bitmap);
-            canvas.DrawImage(image, new SKRect(ballCenter.X - w / 2, spriteBottom - h, ballCenter.X + w / 2, spriteBottom),
+            canvas.DrawImage(image, new SKRect(spriteArea.MidX - w / 2, spriteArea.Bottom - h, spriteArea.MidX + w / 2, spriteArea.Bottom),
                 new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None), paint);
         }
         else
         {
             sprites.Warm(detail.Look, invalidate);
         }
-        // Name row, gender at the right end.
-        var inset = r.Height * 0.12f;
-        var tx = r.Left + r.Height * 0.68f;
-        var textRight = r.Right - inset;
-        var nameFont = NameFontFor(detail.Nickname, r.Height * 0.2f);
-        var nameBaseline = r.Top + r.Height * 0.3f;
-        var name = Fit(detail.Nickname, nameFont, textRight - tx - r.Height * 0.16f);
-        Shadowed(canvas, name, tx, nameBaseline, SKTextAlign.Left, nameFont, fainted ? new SKColor(0xF0, 0xC0, 0xA8) : Pksm.Ink);
-        if (detail.Gender is 0 or 1)
-            DrawGender(canvas, new SKPoint(textRight - r.Height * 0.06f, nameBaseline - r.Height * 0.075f), r.Height * 0.052f, detail.Gender == 0);
+        if (detail.IsShiny)
+            DrawShinyStar(canvas, new SKPoint(spriteArea.Right - 6 * unit, r.Top + 22 * unit), 11 * unit);
+        if (StatusTag(detail) is { } status)
+            Tag(canvas, SKRect.Create(r.Left + 34 * unit, r.Top + 78 * unit, 56 * unit, 20 * unit), status.Label, status.Color);
 
-        // HP tag and bar.
-        var smallFont = SmallFont(r.Height * 0.17f);
-        var labelFont = LabelFont(r.Height * 0.11f);
+        // Name with the gender at the right end; "HP" in green and the bar under it.
+        var tx = r.Left + 128 * unit;
+        var textRight = r.Right - 26 * unit;
+        var nameFont = NameFontFor(detail.Nickname, 34 * unit);
+        var nameBaseline = r.Top + 54 * unit;
+        var name = Fit(detail.Nickname, nameFont, textRight - tx - 40 * unit);
+        Shadowed(canvas, name, tx, nameBaseline, SKTextAlign.Left, nameFont, Pksm.Ink, unit);
+        if (detail.Gender is 0 or 1)
+            DrawGender(canvas, new SKPoint(textRight - 14 * unit, nameBaseline - 14 * unit), 9 * unit, detail.Gender == 0);
+
+        var labelFont = LabelFont(22 * unit);
+        var barTop = r.Top + 73 * unit;
+        Shadowed(canvas, "HP", tx + 4 * unit, barTop + 11 * unit, SKTextAlign.Left, labelFont, HpLabel, unit);
+        var bar = new SKRect(tx + 48 * unit, barTop, r.Right - 70 * unit, barTop + 12 * unit);
+        using (var track = new SKPaint { Color = Track })
+            canvas.DrawRect(bar, track);
         var maxHp = detail.Stats is { Count: 6 } ? detail.Stats[0] : 0;
-        var barTop = r.Top + r.Height * 0.44f;
-        var barHeight = r.Height * 0.12f;
-        var tagWidth = labelFont.MeasureText("HP") + r.Height * 0.1f;
-        var tag = new SKRect(tx, barTop, tx + tagWidth, barTop + barHeight);
-        using (var t = new SKPaint { Color = Pksm.LogoVoid, IsAntialias = true })
-            canvas.DrawRoundRect(tag, 3, 3, t);
-        using (var t = new SKPaint { Color = HpTag, IsAntialias = true })
-            canvas.DrawText("HP", tag.MidX, tag.MidY + labelFont.Size * 0.36f, SKTextAlign.Center, labelFont, t);
-        var bar = new SKRect(tag.Right - 2, barTop, textRight, barTop + barHeight);
-        using (var track = new SKPaint { Color = Track, IsAntialias = true })
-            canvas.DrawRoundRect(bar, 3, 3, track);
-        using (var rim = new SKPaint { Color = Pksm.LogoGrid, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 2 })
-            canvas.DrawRoundRect(SKRect.Inflate(bar, -1, -1), 3, 3, rim);
         if (maxHp > 0)
         {
             var ratio = Math.Clamp(detail.CurrentHp / (float)maxHp, 0f, 1f);
             if (ratio > 0f)
             {
-                var fill = ratio > 0.5f ? new SKColor(0x3F, 0xE0, 0x7F) : ratio > 0.2f ? new SKColor(0xE8, 0xC8, 0x4A) : new SKColor(0xE8, 0x58, 0x58);
-                var inner = SKRect.Inflate(bar, -3, -3);
-                using var f = new SKPaint { Color = fill, IsAntialias = true };
-                canvas.DrawRoundRect(new SKRect(inner.Left, inner.Top, inner.Left + inner.Width * ratio, inner.Bottom), 2, 2, f);
-                using var shine = new SKPaint { Color = SKColors.White.WithAlpha(0x50), StrokeWidth = 2 };
-                canvas.DrawLine(inner.Left + 2, inner.Top + 2, inner.Left + inner.Width * ratio - 2, inner.Top + 2, shine);
+                var color = ratio > 0.5f ? new SKColor(0x58, 0xD8, 0x48) : ratio > 0.2f ? new SKColor(0xF0, 0xC0, 0x28) : new SKColor(0xE8, 0x48, 0x38);
+                var fill = new SKRect(bar.Left, bar.Top, bar.Left + bar.Width * ratio, bar.Bottom);
+                using var f = new SKPaint { Color = color };
+                canvas.DrawRect(fill, f);
+                using var shade = new SKPaint { Color = SKColors.Black.WithAlpha(0x32) };
+                canvas.DrawRect(new SKRect(fill.Left, fill.Bottom - bar.Height * 0.35f, fill.Right, fill.Bottom), shade);
             }
         }
 
-        // Level under the plate, HP numbers under the bar.
-        var bottomBaseline = r.Bottom - r.Height * 0.14f;
-        var lvX = r.Left + inset;
-        Shadowed(canvas, $"Lv{detail.Level}", lvX, bottomBaseline, SKTextAlign.Left, smallFont, fainted ? new SKColor(0xE0, 0xA9, 0x8A) : Pksm.Ink);
-        if (detail.IsShiny)
-            DrawShinyStar(canvas, new SKPoint(lvX + smallFont.MeasureText($"Lv{detail.Level}") + r.Height * 0.1f, bottomBaseline - smallFont.Size * 0.35f), r.Height * 0.06f);
+        // Level at the bottom left, HP numbers at the bottom right.
+        var smallFont = SmallFont(32 * unit);
+        var bottomBaseline = r.Bottom - 18 * unit;
+        Shadowed(canvas, $"Lv.{detail.Level}", r.Left + 30 * unit, bottomBaseline, SKTextAlign.Left, smallFont, Pksm.Ink, unit);
         if (maxHp > 0)
-            Shadowed(canvas, $"{detail.CurrentHp}/{maxHp}", textRight, bottomBaseline, SKTextAlign.Right, smallFont, Pksm.Ink);
-
-        if (selected && !lifted) SelectionFrame(canvas, r, radius);
+            Shadowed(canvas, $"{detail.CurrentHp} / {maxHp}", r.Right - 52 * unit, bottomBaseline, SKTextAlign.Right, smallFont, Pksm.Ink, unit);
     }
 
-    /// <summary>An empty party slot: a dark striped recess, no plate, no text.</summary>
-    private static void EmptySlot(SKCanvas canvas, SKRect r, float radius, bool selected)
+    /// <summary>The games' status tags, by PKHeX's status bits; null when the Pokémon is fine.</summary>
+    private static (string Label, SKColor Color)? StatusTag(EntityDetail detail)
     {
-        using (var body = new SKPaint { Color = EmptyBody, IsAntialias = true })
-            canvas.DrawRoundRect(r, radius, radius, body);
+        if (detail.CurrentHp == 0) return ("FNT", new SKColor(0xC8, 0x30, 0x40));
+        var status = detail.StatusCondition;
+        if ((status & 0x07) != 0) return ("SLP", new SKColor(0x88, 0x88, 0x98));
+        if ((status & 0x88) != 0) return ("PSN", new SKColor(0xA0, 0x48, 0xB8));
+        if ((status & 0x10) != 0) return ("BRN", new SKColor(0xE0, 0x6A, 0x30));
+        if ((status & 0x20) != 0) return ("FRZ", new SKColor(0x58, 0xB8, 0xE0));
+        if ((status & 0x40) != 0) return ("PAR", new SKColor(0xD8, 0xB0, 0x20));
+        return null;
+    }
+
+    private static void Tag(SKCanvas canvas, SKRect r, string text, SKColor color)
+    {
+        using (var fill = new SKPaint { Color = color })
+            canvas.DrawRect(r, fill);
+        var font = LabelFont(r.Height * 0.9f);
+        using var ink = new SKPaint { Color = SKColors.White, IsAntialias = true };
+        canvas.DrawText(text, r.MidX, r.MidY + font.Size * 0.36f, SKTextAlign.Center, font, ink);
+    }
+
+    /// <summary>The panel's octagon: corners cut at a fifth of its height.</summary>
+    private static SKPath Octagon(SKRect r, float shrink = 0)
+    {
+        var o = SKRect.Inflate(r, -shrink, -shrink);
+        var k = r.Height * 0.2f - shrink * 0.4f;
+        var path = new SKPath();
+        path.MoveTo(o.Left + k, o.Top);
+        path.LineTo(o.Right - k, o.Top);
+        path.LineTo(o.Right, o.Top + k);
+        path.LineTo(o.Right, o.Bottom - k);
+        path.LineTo(o.Right - k, o.Bottom);
+        path.LineTo(o.Left + k, o.Bottom);
+        path.LineTo(o.Left, o.Bottom - k);
+        path.LineTo(o.Left, o.Top + k);
+        path.Close();
+        return path;
+    }
+
+    /// <summary>A dark outer line, the bright cyan rim, then the body with its one light
+    /// band rising to the right, as on the DS.</summary>
+    private static void Panel(SKCanvas canvas, SKRect r, SKColor body, SKColor band)
+    {
+        using (var outer = Octagon(r))
+        using (var dark = new SKPaint { Color = RimDark, IsAntialias = true })
+            canvas.DrawPath(outer, dark);
+        using (var rimPath = Octagon(r, 2))
+        using (var rim = new SKPaint { Color = Rim, IsAntialias = true })
+            canvas.DrawPath(rimPath, rim);
+        using var inner = Octagon(r, 6);
+        using (var fill = new SKPaint { Color = body, IsAntialias = true })
+            canvas.DrawPath(inner, fill);
         canvas.Save();
-        using (var clip = new SKPath())
+        canvas.ClipPath(inner, antialias: true);
+        using (var light = new SKPaint { Color = band, IsAntialias = true })
+        using (var stripe = new SKPath())
         {
-            clip.AddRoundRect(r, radius, radius);
-            canvas.ClipPath(clip, antialias: true);
-            using var stripe = new SKPaint { Color = EmptyStripe, StrokeWidth = 3 };
-            for (var y = r.Top + 6; y < r.Bottom; y += 8) canvas.DrawLine(r.Left, y, r.Right, y, stripe);
+            var x0 = r.Left + r.Width * 0.55f;
+            stripe.MoveTo(x0, r.Bottom);
+            stripe.LineTo(x0 + r.Height * 0.9f, r.Top);
+            stripe.LineTo(x0 + r.Height * 0.9f + r.Width * 0.16f, r.Top);
+            stripe.LineTo(x0 + r.Width * 0.16f, r.Bottom);
+            stripe.Close();
+            canvas.DrawPath(stripe, light);
         }
         canvas.Restore();
-        using (var edge = new SKPaint { Color = EmptyEdge, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 2 })
-            canvas.DrawRoundRect(SKRect.Inflate(r, -1, -1), radius, radius, edge);
-        if (selected) SelectionFrame(canvas, r, radius);
+        using var edge = new SKPaint { Color = RimDark.WithAlpha(0x96), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 2 };
+        canvas.DrawPath(inner, edge);
     }
 
-    /// <summary>The cursor: a static white frame around the card, no glow.</summary>
-    private static void SelectionFrame(SKCanvas canvas, SKRect r, float radius)
+    /// <summary>An empty party slot: a dark octagon with a dim rim, no text.</summary>
+    private static void EmptySlot(SKCanvas canvas, SKRect r, bool selected)
     {
-        using var frame = new SKPaint { Color = Cursor, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 3 };
-        canvas.DrawRoundRect(SKRect.Inflate(r, 1, 1), radius + 1, radius + 1, frame);
-    }
-
-    /// <summary>The Pokémon's own ball behind its sprite, enlarged at a whole-number scale
-    /// so its pixels stay crisp, and faint so the sprite stays in front.</summary>
-    private static void BallPlate(SKCanvas canvas, SKBitmap ball, SKPoint c, float radius, bool fainted)
-    {
-        var scale = MathF.Max(1f, MathF.Floor(radius * 2f / ball.Width));
-        var w = ball.Width * scale;
-        var h = ball.Height * scale;
-        using var paint = new SKPaint { Color = SKColors.White.WithAlpha(BallAlpha) };
-        if (fainted) paint.ColorFilter = SKColorFilter.CreateBlendMode(new SKColor(0x70, 0x50, 0x48, BallAlpha), SKBlendMode.SrcIn);
-        using var image = SKImage.FromBitmap(ball);
-        canvas.DrawImage(image, new SKRect(c.X - w / 2, c.Y - h / 2, c.X + w / 2, c.Y + h / 2),
-            new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None), paint);
+        using var outline = Octagon(r, 2);
+        using (var body = new SKPaint { Color = EmptyBody, IsAntialias = true })
+            canvas.DrawPath(outline, body);
+        using var edge = new SKPaint { Color = selected ? Rim : EmptyRim, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = selected ? 3 : 2 };
+        canvas.DrawPath(outline, edge);
     }
 
     private static void DrawShinyStar(SKCanvas canvas, SKPoint c, float r)
@@ -373,11 +380,12 @@ public static class PartyView
         canvas.DrawPath(path, fill);
     }
 
-    /// <summary>Pixel-game text: the glyphs over a 2 px drop shadow.</summary>
-    private static void Shadowed(SKCanvas canvas, string text, float x, float y, SKTextAlign align, SKFont font, SKColor color)
+    /// <summary>DS text: the glyphs over a dark drop shadow one step down and right.</summary>
+    private static void Shadowed(SKCanvas canvas, string text, float x, float y, SKTextAlign align, SKFont font, SKColor color, float unit)
     {
+        var step = MathF.Max(2, 2.4f * unit);
         using (var shadow = new SKPaint { Color = TextShadow, IsAntialias = true })
-            canvas.DrawText(text, x + 2, y + 2, align, font, shadow);
+            canvas.DrawText(text, x + step, y + step, align, font, shadow);
         using var fg = new SKPaint { Color = color, IsAntialias = true };
         canvas.DrawText(text, x, y, align, font, fg);
     }
