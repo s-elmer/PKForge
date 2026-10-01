@@ -154,7 +154,8 @@ public sealed class DexEditorPage : IPadPagingHandler
                 var max = Math.Min(_data.SpeciesNames.Count, total + 1);
                 for (var id = 1; id < max; id++)
                 {
-                    if (_data.SpeciesNames[id].Length == 0) continue;
+                    // A species the game has no dex cell for would take the edit and drop it on save.
+                    if (_data.SpeciesNames[id].Length == 0 || !_session.IsDexSpecies(id)) continue;
                     var state = _session.GetDexEntry(id);
                     states[id] = (state.Seen, state.Caught);
                 }

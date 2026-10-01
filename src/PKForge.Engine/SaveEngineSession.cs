@@ -1206,6 +1206,12 @@ public sealed class SaveEngineSession : ISaveEngineSession
         SetDexFlagsCore(id, seen, caught);
     }
 
+    public bool IsDexSpecies(int species)
+    {
+        ThrowIfDisposed();
+        return species >= 1 && species <= _save.MaxSpeciesID && _save.Personal.IsSpeciesInGame((ushort)species);
+    }
+
     /// <summary>Dex setters only exist on SaveFile for Gen 1/2/3/6 — every other
     /// generation writes its Zukan block directly or the edit silently no-ops.</summary>
     private void SetDexFlagsCore(ushort species, bool seen, bool caught)
@@ -1230,6 +1236,29 @@ public sealed class SaveEngineSession : ISaveEngineSession
             case SAV7 { Zukan: { } z7 }:
                 z7.SetSeen(species, seen);
                 z7.SetCaught(species, caught);
+                return;
+            // Let's Go is not a SAV7 (both derive from SAV_BEEF), but its Zukan7b is a Zukan7.
+            case SAV7b { Zukan: { } z7b }:
+                z7b.SetSeen(species, seen);
+                z7b.SetCaught(species, caught);
+                return;
+            case SAV8LA la:
+                SetDexFlagsLegendsArceus(la, species, seen, caught);
+                return;
+            case SAV9ZA { Zukan: { } z9a }:
+                // Like Zukan9a.CompleteDex: species the game lacks have no entry to set.
+                if (!_save.Personal.IsSpeciesInGame(species)) return;
+                if (!seen)
+                {
+                    z9a.ClearDexEntryAll(species);
+                }
+                else
+                {
+                    // Zukan9a only sets seen and caught together; a seen-only entry drops the
+                    // caught forms (and the language/display data that goes with them) after.
+                    z9a.SetDexEntryAll(species);
+                    if (!caught) z9a.GetEntry(species).ClearCaught();
+                }
                 return;
             case SAV4 { Dex: { } z4 }:
                 z4.SetSeen(species, seen);
@@ -1257,8 +1286,10 @@ public sealed class SaveEngineSession : ISaveEngineSession
                 }
                 else if (z9.GetRevision() == (int)DexBlockMode9.Kitakami)
                 {
-                    // 2.0+ saves only expose the combined entry API.
+                    // 2.0+ saves only expose the combined entry API, which also marks the
+                    // species caught; drop the obtained forms again for a seen-only entry.
                     z9.SetDexEntryAll(species);
+                    z9.DexKitakami.Get(species).ClearCaught();
                 }
                 else
                 {
@@ -1272,6 +1303,38 @@ public sealed class SaveEngineSession : ISaveEngineSession
                 _save.SetSeen(species, seen);
                 _save.SetCaught(species, caught);
                 return;
+        }
+    }
+
+    /// <summary>Legends: Arceus reads "seen" from the research entry's updated flag and
+    /// "caught" from any form's obtain flags. The updated flag has no public clear (PKHeX's
+    /// own editor can't unset it either), so an entry once seen stays seen.</summary>
+    private static void SetDexFlagsLegendsArceus(SAV8LA save, ushort species, bool seen, bool caught)
+    {
+        var dex = save.PokedexSave;
+        // Species outside the Hisui dex have no statistics entries; touching their research
+        // entry would only leave a "seen" mark the game never shows.
+        if (!PersonalTable.LA.IsSpeciesInGame(species)) return;
+        if (seen || caught) dex.SetPokeHasBeenUpdated(species);
+
+        if (!caught)
+        {
+            var count = PersonalTable.LA[species].FormCount;
+            for (byte form = 0; form < count; form++)
+                if (dex.HasAnyPokeObtainFlags(species, form)) dex.SetPokeObtainFlags(species, form, 0);
+            return;
+        }
+        if (save.GetCaught(species)) return;
+
+        // One obtain bit on the first form Hisui has (Growlithe's is form 1): plain
+        // (non-shiny, non-alpha), first gender the species has (bit 0 male/genderless, bit 1 female).
+        var forms = PersonalTable.LA[species].FormCount;
+        for (byte form = 0; form < forms; form++)
+        {
+            var info = PersonalTable.LA[species, form];
+            if (!info.IsPresentInGame) continue;
+            dex.SetPokeObtainFlags(species, form, info.OnlyFemale ? (byte)2 : (byte)1);
+            return;
         }
     }
 

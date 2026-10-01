@@ -758,6 +758,7 @@ internal sealed class UnboundEngineSession : ISaveEngineSession
     public IReadOnlyList<int> GetMissingSpecies() => [];
     public DexEntryState GetDexEntry(int species) => new(false, false);
     public void SetDexEntry(int species, bool seen, bool caught) { }
+    public bool IsDexSpecies(int species) => species >= 1;
     public DexProgress GetDexProgress() => new(0, 0, 1);
     public void CompleteDex() => throw NotYet("The Unbound Pokédex editor");
     public IReadOnlyList<NuzlockeCatch> GetNuzlockeReport() => [];

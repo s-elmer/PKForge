@@ -805,6 +805,8 @@ internal class CfruEngineSession : ISaveEngineSession
         CommitSection(PartySection);
     }
 
+    public bool IsDexSpecies(int nationalSpecies) => Game.DexNumberOf(nationalSpecies) is >= 1 and <= DexCapacity;
+
     public DexProgress GetDexProgress() => new(CountDexBits(DexSeenOffset), CountDexBits(DexCaughtOffset), DexCapacity);
 
     private bool IsDexBitSet(int baseOffset, int dexNumber)

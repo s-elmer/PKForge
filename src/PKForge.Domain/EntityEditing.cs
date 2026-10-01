@@ -75,6 +75,11 @@ public interface ISaveEngineSession : IDisposable
     /// <summary>Sets one dex cell (seen/caught).</summary>
     void SetDexEntry(int species, bool seen, bool caught);
 
+    /// <summary>Whether the game has a dex cell for this species. Newer games cut most of
+    /// the National Dex (no Alakazam in Scarlet/Violet); setting such a
+    /// species writes nothing.</summary>
+    bool IsDexSpecies(int species);
+
     /// <summary>
     /// Rule-aware Nuzlocke view built from met data: first catch per route plus
     /// later duplicates, so runs can be audited after the fact.
