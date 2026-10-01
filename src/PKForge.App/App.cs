@@ -8,20 +8,24 @@ public sealed class App : Application
     protected override void OnSleep()
     {
         Suspended?.Invoke();
+        Music?.PauseForBackground();
         base.OnSleep();
     }
+
+    private static Platforms.Android.MusicPlayer? Music =>
+        IPlatformApplication.Current?.Services.GetService<Domain.IMusicPlayer>() as Platforms.Android.MusicPlayer;
 
     /// <summary>The user's optional default background music starts with the app, once.</summary>
     protected override void OnStart()
     {
         base.OnStart();
-        var music = IPlatformApplication.Current?.Services.GetService<Domain.IMusicPlayer>() as Platforms.Android.MusicPlayer;
-        music?.MaybeAutostart();
+        Music?.MaybeAutostart();
     }
 
     protected override void OnResume()
     {
         base.OnResume();
+        Music?.ResumeFromBackground();
         Resumed?.Invoke();
     }
 
