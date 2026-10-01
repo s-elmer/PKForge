@@ -644,6 +644,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             Allowed(SaveAction.CreateMon, new("Generate Living Dex", IconPath: "create")),
             new("How to get a Pokémon…", IconPath: "map"),
             new("Find held item…", IconPath: "item"),
+            new("IV ranking…", IconPath: "stats", Detail: "Every Pokémon sorted by its IVs; pick one to go to it."),
             Allowed(SaveAction.CreateMon, new("Egg factory…", IconPath: "egg")),
             new("Day Care / Nursery", IconPath: "daycare")));
         if (_sessionsFor() is { } honeySession && PKForge.Engine.HoneyTreeService.IsSupported(honeySession))
@@ -694,6 +695,9 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             }
             case "Find held item…":
                 await FindHeldItemAsync();
+                return;
+            case "IV ranking…":
+                await ShowIvRankingAsync();
                 return;
             case "Battle prep":
                 await ShowBattlePrepAsync();
@@ -1085,6 +1089,76 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             _viewModel.JumpTo(target.Box, target.Slot);
             _viewModel.Status = $"{item.Name}: {pick.Name.Trim()}";
         }
+        _canvas.InvalidateSurface();
+        _boxBar.InvalidateSurface();
+    }
+
+    /// <summary>
+    /// Every Pokémon of the save sorted by IV total (highest or lowest first), each with its
+    /// place, its total and its IV stars; picking one goes to it in its box.
+    /// </summary>
+    private async Task ShowIvRankingAsync()
+    {
+        var session = _sessionsFor();
+        var data = IPlatformApplication.Current?.Services.GetService<IGameDataService>();
+        if (session is null || data is null) return;
+        const string Highest = "Highest IVs first", Lowest = "Lowest IVs first";
+        var order = await PadMenu.ShowAsync(_hostGrid, "IV ranking", null,
+            new PadOption(Highest, IconPath: "stats"), new PadOption(Lowest, IconPath: "stats"));
+        if (order is null) return;
+
+        var occupied = _viewModel.AllSlots.Where(s => s.Species is not null && !s.IsEgg).ToList();
+        var classic = session.GetTrainingCaps().IvMax == 15;
+        var overlay = LoadingOverlay.Show(_hostGrid, "Ranking IVs…", "Reading every Pokémon's IVs.");
+        IReadOnlyList<(SlotSummary Slot, IReadOnlyList<int> Ivs)> ranked;
+        try
+        {
+            ranked = await Task.Run(() =>
+            {
+                var read = new List<(SlotSummary, IReadOnlyList<int>)>(occupied.Count);
+                foreach (var slot in occupied)
+                {
+                    try { read.Add((slot, session.ReadEntity(slot.Box, slot.Slot).IVs)); }
+                    catch (Exception error) when (error is ArgumentException or InvalidOperationException) { }
+                }
+                return IvRank.Order(read.Select(r => ((r.Item1, r.Item2), r.Item2)), highestFirst: order == Highest);
+            });
+        }
+        finally { overlay.Close(); }
+        if (ranked.Count == 0)
+        {
+            _viewModel.Status = "No Pokémon to rank in this save";
+            return;
+        }
+
+        var rows = new List<PickItem>(ranked.Count);
+        for (var i = 0; i < ranked.Count; i++)
+        {
+            var (slot, ivs) = ranked[i];
+            var where = slot.Box == -1 ? $"Party {slot.Slot + 1}" : $"Box {slot.Box + 1:00} · slot {slot.Slot + 1:00}";
+            var species = slot.Species is int sp && sp < data.SpeciesNames.Count ? data.SpeciesNames[sp] : $"#{slot.Species}";
+            var label = slot.Nickname is { Length: > 0 } nick && !string.Equals(nick, species, StringComparison.OrdinalIgnoreCase)
+                ? $"{nick} ({species})" : species;
+            var total = ivs.Sum();
+            var stars = IvRank.Stars(total);
+            rows.Add(new PickItem(i, $"{i + 1}. {label}", Detail: $"{where} · {(classic ? "DV" : "IV")} total {total}")
+            {
+                // Gen 1 and 2 keep DVs (0-15): no PKHeX stars for them.
+                Tag = classic ? null : new string('★', stars),
+                TagColor = stars switch
+                {
+                    1 => UiTokens.Bad,
+                    2 => UiTokens.Gold,
+                    3 => UiTokens.Green,
+                    _ => UiTokens.Cyan,
+                },
+            });
+        }
+        var pick = await PickerMenu.ShowAsync(_hostGrid, $"IV ranking · {(order == Highest ? "highest" : "lowest")} first", rows);
+        if (pick is null) return;
+        var target = ranked[pick.Id].Slot;
+        _viewModel.JumpTo(target.Box, target.Slot);
+        _viewModel.Status = $"IV ranking: {pick.Name}";
         _canvas.InvalidateSurface();
         _boxBar.InvalidateSurface();
     }

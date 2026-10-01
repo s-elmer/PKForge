@@ -16,4 +16,17 @@ public static class IvRank
     };
 
     public static int Stars(IReadOnlyList<int> ivs) => Stars(ivs.Sum());
+
+    /// <summary>
+    /// Orders Pokémon by IV total, highest (or lowest) first; ties keep their storage order,
+    /// so the ranking reads like the boxes.
+    /// </summary>
+    public static IReadOnlyList<T> Order<T>(IEnumerable<(T Item, IReadOnlyList<int> Ivs)> pokemon, bool highestFirst = true)
+    {
+        var indexed = pokemon.Select((p, index) => (p.Item, Total: p.Ivs.Sum(), Index: index));
+        var ordered = highestFirst
+            ? indexed.OrderByDescending(p => p.Total).ThenBy(p => p.Index)
+            : indexed.OrderBy(p => p.Total).ThenBy(p => p.Index);
+        return ordered.Select(p => p.Item).ToList();
+    }
 }
