@@ -60,6 +60,11 @@ internal class CfruEngineSession : ISaveEngineSession
         _displayName = displayName;
     }
 
+    /// <summary>A session over a blank image no detector would take for a real save: the
+    /// host of one Bank record (<see cref="CfruEntity.Host"/>).</summary>
+    internal static CfruEngineSession Blank(CfruGameProfile profile, byte[] image, string? displayName) =>
+        new(image, displayName, profile with { Detect = _ => true });
+
     private ICfruGameData Game => _profile.Data;
 
     /// <summary>Boxes 0-18 in the stream, 19-21 in the raw region, then the profile's
@@ -330,11 +335,14 @@ internal class CfruEngineSession : ISaveEngineSession
         }
     }
 
+    /// <summary>Where the party tail keeps each stat, in app order: Spe sits before SpA and SpD.</summary>
+    private static readonly int[] PartyStatOffsets = [0x58, 0x5A, 0x5C, 0x60, 0x62, 0x5E];
+
     private void RecomputePartyStats(RadicalRedMon mon)
     {
         var stats = Game.ComputeStats(mon);
         for (var i = 0; i < 6; i++)
-            BinaryPrimitives.WriteUInt16LittleEndian(mon.Buffer.AsSpan(mon.Offset + 0x58 + i * 2), (ushort)stats[i]);
+            BinaryPrimitives.WriteUInt16LittleEndian(mon.Buffer.AsSpan(mon.Offset + PartyStatOffsets[i]), (ushort)stats[i]);
         var current = Math.Min(mon.CurrentHp, stats[0]);
         BinaryPrimitives.WriteUInt16LittleEndian(mon.Buffer.AsSpan(mon.Offset + 0x56), (ushort)current);
     }
@@ -529,45 +537,37 @@ internal class CfruEngineSession : ISaveEngineSession
         CommitPc(ResolveSlot(box, 0));
     }
 
-    /// <summary>Copies a mon between slots of either format; every field the compact
-    /// form shares is carried across the boundary, and crossing into the party
-    /// rebuilds the computed tail (level, stats, HP).</summary>
+    /// <summary>Copies a mon between slots exactly as the game moves it: the same form
+    /// takes every byte, a box takes the compact record (<see cref="CfruEntity.Compact"/>),
+    /// and the party rebuilds the computed tail like a withdrawal.</summary>
     private void CopyBetween(RadicalRedMon source, RadicalRedMon target)
     {
-        target.Buffer.AsSpan(target.Offset, target.Size).Clear();
-        target.Species = source.Species;
-        target.Pid = source.Pid;
-        target.Otid = source.Otid;
-        target.Nickname = source.Nickname;
-        target.Language = source.Language;
-        target.SanityFlags = source.SanityFlags;
-        target.Markings = source.Markings;
-        target.HeldItem = source.HeldItem;
-        target.Experience = source.Experience;
-        target.PpBonuses = source.PpBonuses;
-        target.Friendship = Math.Max(source.Friendship, 70);
-        target.Ball = source.Ball;
-        target.Moves = source.Moves;
-        target.EVs = source.EVs;
-        target.IVs = source.IVs;
-        target.HiddenAbility = source.HiddenAbility;
-        target.IsEgg = source.IsEgg;
-        target.Pokerus = source.Pokerus;
-        target.MetLocation = source.MetLocation;
-        target.MetInfo = source.MetInfo;
-        WriteOtName(target, source.OriginalTrainerName);
-        if (target.Party)
-        {
-            target.Buffer[target.Offset + 0x54] = (byte)source.Level;
-            RecomputePartyStats(target);
-        }
+        var from = source.Buffer.AsSpan(source.Offset, source.Size);
+        if (source.Party == target.Party)
+            from.CopyTo(target.Buffer.AsSpan(target.Offset, target.Size));
+        else if (!target.Party)
+            CfruEntity.Compact(from).CopyTo(target.Buffer.AsSpan(target.Offset, PcMonSize));
+        else
+            Withdraw(from, target);
+    }
+
+    /// <summary>A compact record into a party slot: every stored field, full PP
+    /// (<see cref="CfruEntity.Expand"/>), level from EXP, stats and full HP.</summary>
+    private void Withdraw(ReadOnlySpan<byte> compact, RadicalRedMon party)
+    {
+        CfruEntity.Expand(compact, party.Buffer.AsSpan(party.Offset, PartyMonSize), Game.MoveBasePp);
+        party.Buffer[party.Offset + 0x54] = (byte)Game.LevelForExperience(party.Species, party.Experience);
+        RecomputePartyStats(party);
+        BinaryPrimitives.WriteUInt16LittleEndian(party.Buffer.AsSpan(party.Offset + 0x56), (ushort)party.PartyStats![0]);
     }
 
     // ── Import / export ──
 
     public bool ImportSlot(int box, int slot, byte[] fileBytes, string? format = null)
     {
-        var entity = EntityFormat.GetFromBytes(fileBytes);
+        if (EntityBytes.Normalize(format) == _profile.EntityFormat)
+            return ImportOwn(box, slot, fileBytes);
+        var entity = EntityBytes.Parse(fileBytes, format);
         if (entity is null || entity.Species == 0) return false;
         if (entity is not PK3)
         {
@@ -636,17 +636,60 @@ internal class CfruEngineSession : ISaveEngineSession
         return byName > 0 ? byName : Math.Min(stored, Game.MaxSpeciesId);
     }
 
+    /// <summary>Lands this game's own export (<see cref="CfruEntity"/>) as it is: a box
+    /// takes the compact record verbatim, the party rebuilds its tail like a withdrawal.</summary>
+    private bool ImportOwn(int box, int slot, byte[] compact)
+    {
+        if (compact.Length != PcMonSize) return false;
+        if (!new RadicalRedMon(compact.ToArray(), 0, false, Game).LooksValid) return false;
+
+        if (box == -1)
+        {
+            if (PartyCount >= 6) return false;
+            Withdraw(compact, PartyMon(PartyCount));
+            BinaryPrimitives.WriteUInt32LittleEndian(_data.AsSpan(PartyBase + PartyCountOffset), (uint)(PartyCount + 1));
+            CommitSection(PartySection);
+            return true;
+        }
+
+        var location = ResolveSlot(box, slot);
+        if (location is null) return false;
+        compact.CopyTo(BufferOf(location.Value).AsSpan(location.Value.Offset, PcMonSize));
+        CommitPc(location);
+        return true;
+    }
+
     public SlotExport ExportSlot(int box, int slot)
     {
         var mon = TryMon(box, slot);
         if (mon is null || !mon.LooksValid)
             throw new InvalidOperationException("That slot is empty.");
 
-        // The .pk3 keeps the hack's internal species id (clamped to the table) so a
-        // round trip through PKForge is lossless; stock tools read national ids only.
+        // The compact record the game boxes, so the Bank holds every byte the game does.
+        var bytes = mon.Party
+            ? CfruEntity.Compact(mon.Buffer.AsSpan(mon.Offset, PartyMonSize))
+            : mon.Buffer.AsSpan(mon.Offset, PcMonSize).ToArray();
+        return new SlotExport(bytes, $"{Game.SpeciesName(mon.Species)}.{_profile.EntityFormat.ToLowerInvariant()}", _profile.EntityFormat);
+    }
+
+    /// <summary>The Bank's facts for an exported mon, read through its own game's tables.</summary>
+    internal static BankEntryInfo Describe(RadicalRedMon mon, string format, string sourceName)
+    {
+        var (national, form, traits) = LookOf(mon);
+        return new BankEntryInfo(national, form, mon.IsShiny, mon.Nickname, mon.Level, 3, sourceName, format,
+            HeldItemId(mon), traits);
+    }
+
+    /// <summary>
+    /// The PK3 another game imports. It keeps the hack's internal species id (clamped to
+    /// the table) and its move and item ids, and none of the CFRU-only fields: only the
+    /// export's own game reads the exact record.
+    /// </summary>
+    internal static PK3 ToPk3(RadicalRedMon mon)
+    {
         var pk3 = new PK3
         {
-            Species = (ushort)Math.Min(mon.Species, Game.MaxSpeciesId),
+            Species = (ushort)Math.Min(mon.Species, mon.Data.MaxSpeciesId),
             PID = mon.Pid,
             ID32 = mon.Otid,
             Nickname = mon.Nickname,
@@ -666,9 +709,7 @@ internal class CfruEngineSession : ISaveEngineSession
         pk3.SetEVs([mon.EVs[0], mon.EVs[1], mon.EVs[2], mon.EVs[5], mon.EVs[4], mon.EVs[3]]);
         // The egg flag stays cleared: PKHeX's PK3.IsEgg setter rewrites nickname and language.
         pk3.RefreshChecksum();
-        var bytes = new byte[pk3.SIZE_PARTY];
-        pk3.WriteDecryptedDataParty(bytes);
-        return new SlotExport(bytes, $"{Game.SpeciesName(mon.Species)}.pk3");
+        return pk3;
     }
 
     // ── Generation ──
@@ -835,15 +876,15 @@ internal class CfruEngineSession : ISaveEngineSession
 
     /// <summary>The grid's held-item flag: the bridged national id, or -1 when the ROM item has
     /// no national twin (it still "holds something").</summary>
-    private int HeldItemId(RadicalRedMon mon) =>
-        mon.HeldItem == 0 ? 0 : Game.ItemToNational(mon.HeldItem) is > 0 and var national ? national : -1;
+    private static int HeldItemId(RadicalRedMon mon) =>
+        mon.HeldItem == 0 ? 0 : mon.Data.ItemToNational(mon.HeldItem) is > 0 and var national ? national : -1;
 
     /// <summary>Species, form and sprite traits of a mon, the form recovered from the hack's species name.</summary>
-    private (int National, int Form, SpriteTraits Traits) LookOf(RadicalRedMon mon)
+    private static (int National, int Form, SpriteTraits Traits) LookOf(RadicalRedMon mon)
     {
-        var national = Game.NationalIdOf(mon.Species);
-        var (form, traits) = RomhackForms.Resolve(national, Game.SpeciesName(mon.Species));
-        return (national, form, traits with { Female = Game.GenderOf(mon.Pid, mon.Species) == 1 });
+        var national = mon.Data.NationalIdOf(mon.Species);
+        var (form, traits) = RomhackForms.Resolve(national, mon.Data.SpeciesName(mon.Species));
+        return (national, form, traits with { Female = mon.Data.GenderOf(mon.Pid, mon.Species) == 1 });
     }
 
     private SlotSummary SlotOf(int box, int slot, RadicalRedMon mon)

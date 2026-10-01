@@ -1361,6 +1361,11 @@ public sealed class BankPage : ContentPage, IPadPagingHandler
     private async Task EvolveEntryAsync(BankEntry entry)
     {
         if (await DeniedAsync(SaveAction.EditMon)) return;
+        if (PKForge.Engine.EntityBytes.RomHackGame(entry.Info.Format) is { } hack)
+        {
+            await PadMenu.ShowAsync(_hostGrid, "Evolution", $"Pokémon from {hack} can only be evolved in their own game.", "OK");
+            return;
+        }
         var services = IPlatformApplication.Current!.Services;
         var engine = services.GetRequiredService<ISaveEngine>();
         var service = services.GetRequiredService<IEvolutionService>();

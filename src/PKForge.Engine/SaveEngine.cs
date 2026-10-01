@@ -113,6 +113,9 @@ public sealed class SaveEngine : IFormatAwareSaveEngine
 
     public BankEntryInfo? TryDescribeEntity(byte[] bytes, string sourceName, string? format = null)
     {
+        // A CFRU mon is described from its own game's tables: most of its species have no PK3 at all.
+        if (RadicalRed.CfruEntity.Recognize(format) is { } name)
+            return RadicalRed.CfruEntity.Describe(bytes, name, sourceName);
         var entity = EntityBytes.Parse(bytes, format);
         if (entity is null || entity.Species == 0) return null;
         return new BankEntryInfo(entity.Species, entity.Form, entity.IsShiny,
@@ -122,6 +125,10 @@ public sealed class SaveEngine : IFormatAwareSaveEngine
 
     public ISaveEngineSession? OpenEntitySession(byte[] entityBytes, string? displayName = null, string? format = null)
     {
+        // A CFRU mon is read in its own game's session, never as its PK3 view: an edit
+        // saved from that view would replace the exact record with the lossy conversion.
+        if (RadicalRed.CfruEntity.Recognize(format) is { } cfru)
+            return RadicalRed.CfruEntity.Host(entityBytes, cfru, displayName);
         var entity = EntityBytes.Parse(entityBytes, format);
         if (entity is null || entity.Species == 0)
             return null; // genuinely not an editable Pokémon

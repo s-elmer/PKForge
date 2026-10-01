@@ -22,6 +22,9 @@ public static class TransferCompatibility
         ArgumentNullException.ThrowIfNull(entityBytes);
         var context = Enum.TryParse<EntityContext>(targetFormat, out var parsed) ? parsed : EntityContext.None;
         var entity = EntityBytes.Parse(entityBytes, format, context);
+        if ((entity is null || entity.Species == 0) && RadicalRed.CfruEntity.Recognize(format) is { } cfru)
+            return $"{nickname} cannot go to {targetLabel}. It is a {RadicalRed.CfruEntity.GameName(cfru)} Pokémon with no " +
+                   $"Generation 3 counterpart, so only {RadicalRed.CfruEntity.GameName(cfru)} can take it.";
         if (entity is null || entity.Species == 0)
             return $"{nickname} is not a readable Pokémon file.";
 

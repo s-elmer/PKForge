@@ -198,7 +198,13 @@ internal static class UnboundData
         }
     }
 
-    /// <summary>Primary + secondary type ids (the CFRU engine's own type order).</summary>
+    private static readonly string[] ModernTypeNames =
+    [
+        "Normal", "Fighting", "Flying", "Poison", "Ground", "Rock", "Bug", "Ghost", "Steel",
+        "Fire", "Water", "Grass", "Electric", "Psychic", "Ice", "Dragon", "Dark", "Fairy",
+    ];
+
+    /// <summary>Primary + secondary type ids in the modern order; one id for a single type.</summary>
     public static int[] TypesOf(int species)
     {
         if (_types is null) LoadTypes();
@@ -332,12 +338,11 @@ internal static class UnboundData
         _types = [];
         foreach (var property in JsonDocument.Parse(ReadAll("unbound.species_types.json")).RootElement.EnumerateObject())
         {
-            var entry = property.Value;
-            _types[int.Parse(property.Name)] =
-            [
-                entry.GetProperty("type1_id").GetInt32(),
-                entry.GetProperty("type2_id").GetInt32(),
-            ];
+            // The file's ids follow the CFRU engine's order (Fire 10, Fairy 23); the app uses the
+            // modern order, so the names are mapped instead.
+            int[] types = [.. property.Value.GetProperty("types").EnumerateArray()
+                .Select(type => Math.Max(0, Array.IndexOf(ModernTypeNames, type.GetString())))];
+            _types[int.Parse(property.Name)] = types.Length == 0 ? [0] : types;
         }
     }
 

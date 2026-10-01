@@ -64,12 +64,9 @@ public sealed class TransferPreviewService
         ArgumentNullException.ThrowIfNull(scratch);
         ArgumentNullException.ThrowIfNull(entityBytes);
 
-        var context = scratch is SaveEngineSession engine ? engine.GetEntity(box, slot).Context : EntityContext.None;
-        var before = EntityBytes.Parse(entityBytes, format, context);
-        if (before is null || before.Species == 0)
-            return null;
         // Romhack engine sessions cannot hand back the landed entity, so the diff is
-        // honestly unavailable for them; the transfer itself is unaffected.
+        // honestly unavailable for them; the transfer itself is unaffected. Their import
+        // is the only judge of the bytes: a CFRU mon going home has no PKHeX reading.
         if (scratch is not SaveEngineSession session)
         {
             if (!scratch.ImportSlot(box, slot, entityBytes, format))
@@ -80,6 +77,9 @@ public sealed class TransferPreviewService
                 ["This game has no offline legality analysis."]);
         }
 
+        var before = EntityBytes.Parse(entityBytes, format, session.GetEntity(box, slot).Context);
+        if (before is null || before.Species == 0)
+            return null;
         var conversion = session.ImportSlotWithReport(box, slot, entityBytes, out _, format);
         if (conversion is null)
             return null;

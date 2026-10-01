@@ -28,6 +28,15 @@ public static class BankEntryEditor
         var legalizer = services.GetService<ILegalizerService>();
         var sprites = services.GetRequiredService<ISpriteService>();
 
+        // A ROM hack's record keeps fields no PKHeX editor knows; saving from here would
+        // rewrite it. Its Summary stays available.
+        if (PKForge.Engine.EntityBytes.RomHackGame(entry.Info.Format) is { } hack)
+        {
+            await EditorMenu.ShowAsync(host, "Can't edit",
+                $"Pokémon from {hack} can only be edited in their own game.", "OK");
+            return false;
+        }
+
         ISaveEngineSession? session;
         try
         {

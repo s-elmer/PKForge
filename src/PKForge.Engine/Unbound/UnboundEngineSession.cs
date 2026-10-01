@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using PKForge.Domain;
+using PKForge.Engine.RadicalRed;
 using PKHeX.Core;
 using static PKForge.Engine.Unbound.UnboundFormat;
 
@@ -251,11 +252,14 @@ internal sealed class UnboundEngineSession : ISaveEngineSession
         }
     }
 
+    /// <summary>Where the party tail keeps each stat, in app order: Spe sits before SpA and SpD.</summary>
+    private static readonly int[] PartyStatOffsets = [0x58, 0x5A, 0x5C, 0x60, 0x62, 0x5E];
+
     private void RecomputePartyStats(UnboundMon mon)
     {
         var stats = UnboundData.ComputeStats(mon);
         for (var i = 0; i < 6; i++)
-            BinaryPrimitives.WriteUInt16LittleEndian(mon.Buffer.AsSpan(mon.Offset + 0x58 + i * 2), (ushort)stats[i]);
+            BinaryPrimitives.WriteUInt16LittleEndian(mon.Buffer.AsSpan(mon.Offset + PartyStatOffsets[i]), (ushort)stats[i]);
         var current = Math.Min(mon.CurrentHp, stats[0]);
         BinaryPrimitives.WriteUInt16LittleEndian(mon.Buffer.AsSpan(mon.Offset + 0x56), (ushort)current);
     }
@@ -363,6 +367,9 @@ internal sealed class UnboundEngineSession : ISaveEngineSession
         mon.Pid = (uint)(species * 2654435761) & 0xFFFF_FFFF; // PUSE's deterministic starter personality
         mon.Otid = (uint)((trainer.SID << 16) | (trainer.TID & 0xFFFF));
         mon.Nickname = UnboundData.SpeciesName(species);
+        scratch[0x12] = 2; // English
+        scratch[0x13] = 2; // hasSpecies
+        scratch[0x25] = 70; // base friendship: the compact record carries it into the party
         mon.Moves = [.. nationalMoves.Where(move => move > 0).Select(UnboundData.MoveFromNational).Where(move => move > 0).Take(4)];
         mon.IVs = [31, 31, 31, 31, 31, 31];
         mon.Ball = ball is { } wanted && UnboundMon.TryStoreBall(wanted, out var cfru) ? cfru : 3;
@@ -524,7 +531,9 @@ internal sealed class UnboundEngineSession : ISaveEngineSession
 
     public bool ImportSlot(int box, int slot, byte[] fileBytes, string? format = null)
     {
-        var entity = EntityFormat.GetFromBytes(fileBytes);
+        if (EntityBytes.Normalize(format) == CfruEntity.Unbound)
+            return ImportOwn(box, slot, fileBytes);
+        var entity = EntityBytes.Parse(fileBytes, format);
         if (entity is null || entity.Species == 0) return false;
         if (entity is not PK3)
         {
@@ -556,29 +565,28 @@ internal sealed class UnboundEngineSession : ISaveEngineSession
         return true;
     }
 
-    /// <summary>Copies a mon between slots of either format; crossing into the party
-    /// rebuilds the computed tail (level, stats, HP), the compact form drops nothing.</summary>
+    /// <summary>Copies a mon between slots exactly as the game moves it: the same form
+    /// takes every byte, a box takes the compact record (<see cref="CfruEntity.Compact"/>),
+    /// and the party rebuilds the computed tail like a withdrawal.</summary>
     private void CopyBetween(UnboundMon source, UnboundMon target)
     {
-        target.Buffer.AsSpan(target.Offset, target.Size).Clear();
-        target.Species = source.Species;
-        target.HeldItem = source.HeldItem;
-        target.Experience = source.Experience;
-        target.Pid = source.Pid;
-        target.Otid = source.Otid;
-        target.Nickname = source.Nickname;
-        target.Moves = source.Moves;
-        target.IVs = source.IVs;
-        target.EVs = source.EVs;
-        target.Ball = source.Ball;
-        target.HiddenAbility = source.HiddenAbility;
-        WriteOtName(target, source.OriginalTrainerName);
-        if (target.Party)
-        {
-            target.Buffer[target.Offset + 0x29] = (byte)Math.Max(source.Friendship, 70);
-            target.Buffer[target.Offset + 0x54] = (byte)source.Level;
-            RecomputePartyStats(target);
-        }
+        var from = source.Buffer.AsSpan(source.Offset, source.Size);
+        if (source.Party == target.Party)
+            from.CopyTo(target.Buffer.AsSpan(target.Offset, target.Size));
+        else if (!target.Party)
+            CfruEntity.Compact(from).CopyTo(target.Buffer.AsSpan(target.Offset, PcMonSize));
+        else
+            Withdraw(from, target);
+    }
+
+    /// <summary>A compact record into a party slot: every stored field, full PP
+    /// (<see cref="CfruEntity.Expand"/>), level from EXP, stats and full HP.</summary>
+    private void Withdraw(ReadOnlySpan<byte> compact, UnboundMon party)
+    {
+        CfruEntity.Expand(compact, party.Buffer.AsSpan(party.Offset, PartyMonSize), UnboundData.MoveBasePp);
+        party.Buffer[party.Offset + 0x54] = (byte)UnboundData.LevelForExperience(party.Species, party.Experience);
+        RecomputePartyStats(party);
+        BinaryPrimitives.WriteUInt16LittleEndian(party.Buffer.AsSpan(party.Offset + 0x56), (ushort)party.PartyStats![0]);
     }
 
     private static void FromPk3(PK3 pk3, UnboundMon target)
@@ -597,6 +605,8 @@ internal sealed class UnboundEngineSession : ISaveEngineSession
         target.EVs = [pk3.EV_HP, pk3.EV_ATK, pk3.EV_DEF, pk3.EV_SPA, pk3.EV_SPD, pk3.EV_SPE];
         target.Ball = 3;
         target.HiddenAbility = false;
+        target.Buffer[target.Offset + 0x12] = (byte)Math.Clamp(pk3.Language, 1, 5);
+        target.Buffer[target.Offset + 0x13] = 2; // hasSpecies, as the game sets it
         WriteOtName(target, pk3.OriginalTrainerName);
         if (target.Party)
         {
@@ -605,12 +615,51 @@ internal sealed class UnboundEngineSession : ISaveEngineSession
         }
     }
 
+    /// <summary>Lands this game's own export (<see cref="CfruEntity"/>) as it is: a box
+    /// takes the compact record verbatim, the party rebuilds its tail like a withdrawal.</summary>
+    private bool ImportOwn(int box, int slot, byte[] compact)
+    {
+        if (compact.Length != PcMonSize) return false;
+        if (!new UnboundMon(compact.ToArray(), 0, party: false).LooksValid) return false;
+
+        if (box == -1)
+        {
+            if (PartyCount >= 6) return false;
+            Withdraw(compact, new UnboundMon(_data, PartyBase + PartyOffset + PartyCount * PartyMonSize, party: true));
+            BinaryPrimitives.WriteUInt32LittleEndian(_data.AsSpan(PartyBase + PartyCountOffset), (uint)(PartyCount + 1));
+            CommitParty();
+            return true;
+        }
+
+        var location = ResolveSlot(box, slot);
+        if (location is null) return false;
+        compact.CopyTo((location.Value.Stream ? _stream : _data).AsSpan(location.Value.Offset, PcMonSize));
+        CommitPc(location);
+        return true;
+    }
+
     public SlotExport ExportSlot(int box, int slot)
     {
         var mon = TryMon(box, slot);
         if (mon is null || !mon.LooksValid)
             throw new InvalidOperationException("That slot is empty.");
 
+        // The compact record the game boxes, so the Bank holds every byte the game does.
+        var bytes = mon.Party
+            ? CfruEntity.Compact(mon.Buffer.AsSpan(mon.Offset, PartyMonSize))
+            : mon.Buffer.AsSpan(mon.Offset, PcMonSize).ToArray();
+        return new SlotExport(bytes, $"{UnboundData.SpeciesName(mon.Species)}.pk3ub", CfruEntity.Unbound);
+    }
+
+    /// <summary>The Bank's facts for an exported mon, read through Unbound's tables.</summary>
+    internal static BankEntryInfo Describe(UnboundMon mon, string sourceName) =>
+        new(UnboundData.NationalIdOf(mon.Species), 0, mon.IsShiny, mon.Nickname, mon.Level, 3, sourceName,
+            CfruEntity.Unbound, HeldItemId(mon), default(SpriteTraits));
+
+    /// <summary>The PK3 another game imports: national ids where Gen 3 has them, none of
+    /// the CFRU-only fields. Only Unbound itself reads the exact record.</summary>
+    internal static PK3 ToPk3(UnboundMon mon)
+    {
         var pk3 = new PK3
         {
             Species = (ushort)UnboundData.NationalIdOf(mon.Species),
@@ -632,9 +681,7 @@ internal sealed class UnboundEngineSession : ISaveEngineSession
         pk3.SetIVs([ivs[0], ivs[1], ivs[2], ivs[5], ivs[3], ivs[4]]); // storage -> PKHeX order
         pk3.SetEVs([mon.EVs[0], mon.EVs[1], mon.EVs[2], mon.EVs[5], mon.EVs[4], mon.EVs[3]]);
         pk3.RefreshChecksum();
-        var bytes = new byte[pk3.SIZE_PARTY];
-        pk3.WriteDecryptedDataParty(bytes);
-        return new SlotExport(bytes, $"{UnboundData.SpeciesName(mon.Species)}.pk3");
+        return pk3;
     }
 
     /// <summary>The grid's held-item flag: the bridged national id, or -1 when the ROM item has

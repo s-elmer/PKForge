@@ -3861,6 +3861,13 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
                 var session = _sessionsFor();
                 if (session is null) return;
                 var export = session.ExportSlot(_viewModel.BoxIndex, slot);
+                // The PKF1 envelope names no format, and a ROM hack's record cannot be read without one.
+                if (PKForge.Engine.EntityBytes.RomHackGame(export.Format) is { } hack)
+                {
+                    await PadMenu.ShowAsync(_hostGrid, ".pk QR",
+                        $"Pokémon from {hack} can't travel by .pk QR. Use Send to Bank or Export .pk file instead.", "OK");
+                    return;
+                }
                 var detail = session.ReadEntity(_viewModel.BoxIndex, slot);
                 await QrPopup.ShowBinaryAsync(_hostGrid, $"{detail.SpeciesName} · .PK QR",
                     Services.QrEntityService.MakePayload(export.Data, session.Generation, detail.SpeciesName));
