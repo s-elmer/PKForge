@@ -149,8 +149,7 @@ public sealed class SaveEngineSession : ISaveEngineSession
         }
         if (edit.Nickname is { } nickname && !string.Equals(entity.Nickname, nickname, StringComparison.Ordinal))
         {
-            entity.Nickname = nickname;
-            entity.IsNicknamed = true;
+            entity.SetNickname(nickname);
             changed = true;
         }
         if (edit.Level is { } level && entity.CurrentLevel != Math.Clamp(level, 1, 100))
@@ -253,7 +252,7 @@ public sealed class SaveEngineSession : ISaveEngineSession
         }
         if (edit.OriginalTrainer is { } ot && !string.Equals(entity.OriginalTrainerName, ot, StringComparison.Ordinal))
         {
-            entity.OriginalTrainerName = ot;
+            SetOriginalTrainerName(entity, ot, _save);
             changed = true;
         }
         if (edit.Gender is { } gender && entity.Gender != Math.Clamp(gender, 0, 2))
@@ -877,12 +876,11 @@ public sealed class SaveEngineSession : ISaveEngineSession
                     break;
                 }
                 case "nickname":
-                    entity.Nickname = value;
-                    entity.IsNicknamed = value.Length > 0;
+                    entity.SetNickname(value);
                     changed = true;
                     break;
                 case "ot" or "trainer":
-                    entity.OriginalTrainerName = value;
+                    SetOriginalTrainerName(entity, value);
                     changed = true;
                     break;
             }
@@ -1517,6 +1515,8 @@ public sealed class SaveEngineSession : ISaveEngineSession
     public void SetTrainer(TrainerInfo trainer)
     {
         ThrowIfDisposed();
+        if (_save is SAV3 sav3 && !string.Equals(_save.OT, trainer.Name, StringComparison.Ordinal))
+            PrefillTrainerName3(sav3.SmallBlock.OriginalTrainerTrash, sav3.Japanese);
         _save.OT = trainer.Name;
         if (!string.Equals(_save.OT, trainer.Name, StringComparison.Ordinal))
             throw new InvalidOperationException("This save's character set cannot store that trainer name.");
@@ -1571,7 +1571,7 @@ public sealed class SaveEngineSession : ISaveEngineSession
         }
 
         var wasShiny = entity.IsShiny;
-        entity.OriginalTrainerName = profile?.OriginalTrainer ?? _save.OT;
+        SetOriginalTrainerName(entity, profile?.OriginalTrainer ?? _save.OT, _save);
         entity.TID16 = (ushort)Math.Clamp(profile?.TID ?? _save.TID16, 0, ushort.MaxValue);
         entity.SID16 = entity.Format < 3 || entity.VC
             ? (ushort)0
@@ -1587,7 +1587,7 @@ public sealed class SaveEngineSession : ISaveEngineSession
         entity.SetHandlerAndMemory(ownerInfo, before.EncounterOriginal);
         // Handler repair follows PKHeX transfer rules (VC entities cannot store a SID,
         // for example); ownership is reapplied within those format limits.
-        entity.OriginalTrainerName = ownerInfo.OT;
+        SetOriginalTrainerName(entity, ownerInfo.OT, _save);
         entity.TID16 = ownerInfo.TID16;
         entity.SID16 = entity.Format < 3 || entity.VC ? (ushort)0 : ownerInfo.SID16;
         entity.OriginalTrainerGender = ownerInfo.Gender;
@@ -1611,6 +1611,34 @@ public sealed class SaveEngineSession : ISaveEngineSession
             return false;
         }
         return true;
+    }
+
+    /// <summary>Writes an OT name the way a Gen 3 Pokémon gets one. The games copy the save's
+    /// name buffer byte for byte, and the naming screen pre-fills that buffer with terminators
+    /// (Japanese: 5 characters and a terminator, the alignment bytes stay zero). A plain
+    /// overwrite keeps the old name's tail after the new terminator, which PKHeX rightly flags
+    /// as "Final terminator missing". Other formats have no such buffer rule.</summary>
+    internal static void SetOriginalTrainerName(PKM entity, string name, SaveFile? owner = null)
+    {
+        if (entity is PK3 pk3)
+        {
+            var trash = pk3.OriginalTrainerTrash;
+            if (owner is SAV3 sav3 && sav3.Japanese == pk3.Japanese && string.Equals(sav3.OT, name, StringComparison.Ordinal))
+            {
+                sav3.SmallBlock.OriginalTrainerTrash[..trash.Length].CopyTo(trash);
+                return;
+            }
+            PrefillTrainerName3(trash, pk3.Japanese);
+        }
+        entity.OriginalTrainerName = name;
+    }
+
+    /// <summary>The Gen 3 naming screen's buffer before a name is written: terminators for
+    /// every character the language allows plus one, zero beyond.</summary>
+    private static void PrefillTrainerName3(Span<byte> buffer, bool japanese)
+    {
+        buffer.Clear();
+        buffer[..Math.Min(buffer.Length, japanese ? 6 : 8)].Fill(StringConverter3.TerminatorByte);
     }
 
     /// <summary>Mirrors PKHeX's trainer-name verifier: fixed-OT trades, event gifts,
