@@ -25,6 +25,13 @@ public sealed class UnboundDataTablesTests
         Assert.Equal(types, UnboundData.TypesOf(species));
 
     [Fact]
+    public void NoHeldItemReadsNone()
+    {
+        Assert.Equal("None", UnboundData.ItemName(0));
+        Assert.Equal("Master Ball", UnboundData.ItemName(1));
+    }
+
+    [Fact]
     public void RadicalRedSingleTypesAreListedOnce() =>
         Assert.Equal([11], PKForge.Engine.RadicalRed.RadicalRedData.TypesOf(PKForge.Engine.RadicalRed.RadicalRedData.SpeciesIdByName("Floragato")));
 
