@@ -199,7 +199,10 @@ public static class GenerateWizard
         for (var i = 0; i < 4; i++)
         {
             var index = i;
-            moveRows[i] = Chooser($"Move {i + 1}", i % 2 == 0, MoveItems, () => moves[index], v => moves[index] = v,
+            // The species' learnable moves first, with the Legal (Y) and type (X) filters.
+            Task<PickItem?> OpenMove(int? current) => InfoPickers.ShowMovesAsync(host, $"Move {index + 1}", data, session,
+                IMonInfoService.NoSlot, 0, current, species.Id, form);
+            moveRows[i] = Chooser($"Move {i + 1}", i % 2 == 0, MoveItems, () => moves[index], v => moves[index] = v, OpenMove,
                 leading: id => id is { } m && InfoPickers.Info?.GetMove(session, m) is { } facts ? InfoKit.TypeBadge(facts.Type, Design(128)) : null);
         }
 

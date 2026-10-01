@@ -275,6 +275,19 @@ public sealed class MonInfoTests
 
     // ---------- Helpers ----------
 
+    [Fact]
+    public void ASpeciesWithNoPokemonYetGetsItsLearnableMoves()
+    {
+        // The creation wizard: no Pokémon in a slot, only the species being made.
+        const int Bulbasaur = 1, VineWhip = 22, SolarBeam = 76, Surf = 57;
+        using var session = Blank(7);
+        var moves = Info.GetMoveChoices(session, IMonInfoService.NoSlot, 0, Bulbasaur).ToDictionary(m => m.Id);
+        Assert.Equal(LearnKind.LevelUp, moves[VineWhip].Learn.Kind);
+        Assert.True(moves[VineWhip].Learn.Level > 0);
+        Assert.Equal(LearnKind.Machine, moves[SolarBeam].Learn.Kind);
+        Assert.False(moves[Surf].Learn.IsLegal);
+    }
+
     private static SaveEngineSession Blank(int generation) => (SaveEngineSession)new SaveEngine().OpenBlankSession(generation);
 
     /// <summary>A blank save with one legalizer-made (so legal, encounter-matched) mon in box 0 slot 0.</summary>
