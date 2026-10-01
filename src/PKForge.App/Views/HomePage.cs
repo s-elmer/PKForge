@@ -775,6 +775,15 @@ public sealed class HomePage : ContentPage, IPadHandler
         {
             case AppUpdateInstallResult.InstallerOpened:
                 _viewModel.Status = "Android is installing the update.";
+#if ANDROID
+                // Android answers later, through the install receiver; a refusal is shown here.
+                void OnFailed(string reason)
+                {
+                    UpdateInstallReceiver.Failed -= OnFailed;
+                    _ = ReportInstallFailureAsync(update, reason);
+                }
+                UpdateInstallReceiver.Failed += OnFailed;
+#endif
                 break;
             case AppUpdateInstallResult.ReleasePageOpened:
                 _viewModel.Status = "The PKForge release page is open.";
@@ -788,6 +797,15 @@ public sealed class HomePage : ContentPage, IPadHandler
                     AppUpdateService.OpenInstallPermissionSettings();
                 break;
         }
+    }
+
+    private async Task ReportInstallFailureAsync(AvailableAppUpdate update, string reason)
+    {
+        _viewModel.Status = $"Update failed: {reason}";
+        var openRelease = await PadMenu.ConfirmAsync(_hostGrid, "Open the release page?",
+            $"Android did not install the update ({reason}). The GitHub release page has the same APK.", "Open");
+        if (openRelease)
+            await Launcher.OpenAsync(update.ReleaseUrl);
     }
 
     /// <summary>Background music: library, play/pause, skip, order, autostart.</summary>
