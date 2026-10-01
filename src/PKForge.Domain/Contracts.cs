@@ -82,8 +82,10 @@ public sealed record SaveDescription(string GameName, int Generation, string Tra
 
 public interface IBackupService
 {
-    /// <summary>The change description shown in the restore point list (what this point undoes).</summary>
-    ValueTask<BackupReceipt> CreateAsync(SaveSnapshot source, string? changeDescription = null, CancellationToken cancellationToken = default);
+    /// <summary>The change description shown in the restore point list (what this point undoes);
+    /// <paramref name="documentId"/> is the save file the point belongs to.</summary>
+    ValueTask<BackupReceipt> CreateAsync(SaveSnapshot source, string? changeDescription = null, string? documentId = null,
+        CancellationToken cancellationToken = default);
     ValueTask<IReadOnlyList<BackupInfo>> ListAsync(CancellationToken cancellationToken = default);
     ValueTask<ReadOnlyMemory<byte>> ReadAsync(string backupId, CancellationToken cancellationToken = default);
 }
@@ -290,7 +292,18 @@ public sealed record BackupInfo(
     string Format,
     int Generation,
     long SizeBytes,
-    string? ChangeDescription = null);
+    string? ChangeDescription = null,
+    string? DocumentId = null)
+{
+    /// <summary>
+    /// Whether this restore point belongs to the save file <paramref name="documentId"/>.
+    /// Points made before they recorded their file match by format, generation and name.
+    /// </summary>
+    public bool BelongsTo(string documentId, SaveSnapshot open) => DocumentId is { } own
+        ? string.Equals(own, documentId, StringComparison.Ordinal)
+        : string.Equals(Format, open.Format, StringComparison.Ordinal) && Generation == open.Generation
+            && string.Equals(DisplayName, open.DisplayName, StringComparison.Ordinal);
+}
 
 public sealed record PickedDocument(string DocumentId, string DisplayName);
 
