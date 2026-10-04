@@ -8,6 +8,6 @@ The Black/White-style sprites of later generations and the box icons are drawn b
 community artists of Smogon's sprite projects; see
 [Showdown's credits](https://pokemonshowdown.com/credits) for the full list.
 
-The files are fetched and mapped to PKHeX forms by `tools/ShowdownSprites/build.py`.
+The files are fetched from Showdown and mapped to PKHeX forms ahead of time.
 
 Pokémon and Pokémon character names are trademarks of Nintendo, Creatures Inc., and GAME FREAK Inc.

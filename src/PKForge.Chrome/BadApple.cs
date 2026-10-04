@@ -4,7 +4,7 @@ using SkiaSharp;
 namespace PKForge.Chrome;
 
 /// <summary>
-/// The About screen's easter egg frames (tools/BadApple/build.py): 1-bit frames, each stored
+/// The About screen's easter egg frames: 1-bit frames, each stored
 /// XORed with the one before it, read forward one at a time from a gzip stream.
 /// </summary>
 public sealed class BadAppleFrames : IDisposable

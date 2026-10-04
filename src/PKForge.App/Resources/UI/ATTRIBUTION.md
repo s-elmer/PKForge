@@ -76,4 +76,4 @@ Pokémon © Nintendo / Game Freak / The Pokémon Company.
 The About screen's hidden easter egg plays "Bad Apple!!" feat. nomico by Alstroemeria Records
 (arrangement of ZUN's Touhou 4 theme), with frames traced from the shadow-art PV by Anira.
 Both remain their authors' work, included as a non-commercial fan tribute; they are removed
-on request. Built with tools/BadApple/build.py.
+on request.

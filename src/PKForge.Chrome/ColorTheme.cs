@@ -2,7 +2,7 @@ namespace PKForge.Chrome;
 
 /// <summary>
 /// One color theme: a value for every chrome role (ColorThemes.g.cs, built from the artist's
-/// mockups by tools/Themes/build.py). Colors with a meaning in the games (types, HP, legality,
+/// mockups). Colors with a meaning in the games (types, HP, legality,
 /// gender, shiny, status) are not roles and never change with the theme.
 /// </summary>
 public sealed partial record ColorTheme
