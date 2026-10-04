@@ -30,6 +30,12 @@ if (args.Length > 0 && args[0] == "themes")
     ThemeSheet.Render(root, args.Length > 1 ? args[1] : Path.Combine(root, "tools/ChromePreview/out/themes"));
     return;
 }
+if (args.Length > 0 && args[0] == "badapple")
+{
+    // A few frames of the About screen's easter egg. Usage: dotnet run --project tools/ChromePreview -- badapple [output-dir]
+    BadApplePreview.Render(root, args.Length > 1 ? args[1] : Path.Combine(root, "tools/ChromePreview/out/badapple"));
+    return;
+}
 if (args.Length > 0 && args[0] == "editor")
 {
     // The Pokémon editor panel in the designer's direction (EditorPaint).
