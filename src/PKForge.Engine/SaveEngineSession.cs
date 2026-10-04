@@ -27,6 +27,20 @@ public sealed class SaveEngineSession : ISaveEngineSession
     }
 
     /// <summary>
+    /// PKHeX's own save-load step (PKHeX.WinForms: ParseSettings.InitFromSaveFileData): a Game
+    /// Boy cartridge save allows the GB-era events (PCNY eggs, Pokémon Stadium gifts), which the
+    /// 3DS Virtual Console rules used for every later save exclude. The era is process-wide, so
+    /// only the save the player opens sets it, never the other saves a transfer or the Bank
+    /// reads. PKHeX's active-trainer handler checks are not taken on.
+    /// </summary>
+    public void MakeActive()
+    {
+        ThrowIfDisposed();
+        ParseSettings.InitFromSaveFileData(_save);
+        ParseSettings.ClearActiveTrainer();
+    }
+
+    /// <summary>
     /// Wraps an already-built save (e.g. the throwaway save behind a single bank mon).
     /// We deliberately do NOT serialize it here: a freshly-built blank Gen3/4 save cannot
     /// be written out (SAV3.WriteSectors throws), and a standalone entity session is never
@@ -218,10 +232,10 @@ public sealed class SaveEngineSession : ISaveEngineSession
             entity.HeldItem = item;
             changed = true;
         }
-        if (edit.Move1 is { } m1 && entity.Move1 != m1) { entity.Move1 = (ushort)m1; changed = true; }
-        if (edit.Move2 is { } m2 && entity.Move2 != m2) { entity.Move2 = (ushort)m2; changed = true; }
-        if (edit.Move3 is { } m3 && entity.Move3 != m3) { entity.Move3 = (ushort)m3; changed = true; }
-        if (edit.Move4 is { } m4 && entity.Move4 != m4) { entity.Move4 = (ushort)m4; changed = true; }
+        if (edit.Move1 is { } m1 && entity.Move1 != m1) { SetMoveFresh(entity, 0, m1); changed = true; }
+        if (edit.Move2 is { } m2 && entity.Move2 != m2) { SetMoveFresh(entity, 1, m2); changed = true; }
+        if (edit.Move3 is { } m3 && entity.Move3 != m3) { SetMoveFresh(entity, 2, m3); changed = true; }
+        if (edit.Move4 is { } m4 && entity.Move4 != m4) { SetMoveFresh(entity, 3, m4); changed = true; }
         if (edit.IVs is { Count: 6 } ivs)
         {
             var values = ClampAll(ivs.ToArray(), TrainingCapsOf(entity).IvMax);
@@ -2421,6 +2435,25 @@ public sealed class SaveEngineSession : ISaveEngineSession
 
         e.RefreshChecksum();
         SetEntityCore(box, slot, e);
+    }
+
+    /// <summary>
+    /// Writes a move the way the games teach one: the slot starts with no PP Ups and full
+    /// PP for that move in the entity's own generation (Recover is 20 PP in Gen 3, 5 in
+    /// Gen 9). Keeping the old move's PP behind flags a boxed Pokémon whose PP must be
+    /// healed ("PP should be 20"), and a newly filled slot would sit at 0 PP.
+    /// </summary>
+    private static void SetMoveFresh(PKM e, int index, int move)
+    {
+        var id = (ushort)move;
+        var pp = id == 0 ? 0 : e.GetMovePP(id, 0);
+        switch (index)
+        {
+            case 0: e.Move1 = id; e.Move1_PPUps = 0; e.Move1_PP = pp; break;
+            case 1: e.Move2 = id; e.Move2_PPUps = 0; e.Move2_PP = pp; break;
+            case 2: e.Move3 = id; e.Move3_PPUps = 0; e.Move3_PP = pp; break;
+            default: e.Move4 = id; e.Move4_PPUps = 0; e.Move4_PP = pp; break;
+        }
     }
 
     private static void SetPPUps(PKM e, IReadOnlyList<int> values)

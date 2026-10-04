@@ -3,6 +3,9 @@ namespace PKForge.Domain;
 /// <summary>An engine-owned mutable save document. All access goes through this session; callers never see engine types.</summary>
 public interface ISaveEngineSession : IDisposable
 {
+    /// <summary>Called when this save becomes the one the player has open (legality era).</summary>
+    void MakeActive() { }
+
     SaveSnapshot Snapshot { get; }
     EntityDetail ReadEntity(int box, int slot);
     void ApplyEdit(int box, int slot, EntityEdit edit);
