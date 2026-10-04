@@ -101,16 +101,9 @@ public static class StoragePaint
             }
             case WallpaperStyle.Blue:
             {
-                // The art's light and shade painted in quiet shades of the app's blue, and
-                // darker toward the edges.
-                using (var map = new SKPaint { ColorFilter = BlueMap(art) })
-                    c.DrawImage(art, source, well, sampling, map);
-                using var vignette = new SKPaint
-                {
-                    Shader = SKShader.CreateRadialGradient(new SKPoint(well.MidX, well.MidY), well.Width * 0.62f,
-                        [SKColors.Transparent, Well.WithAlpha(140)], [0.55f, 1f], SKShaderTileMode.Clamp),
-                };
-                c.DrawRect(well, vignette);
+                // The art's light and shade painted in quiet shades of the app's blue.
+                using var map = new SKPaint { ColorFilter = BlueMap(art) };
+                c.DrawImage(art, source, well, sampling, map);
                 break;
             }
             default:
