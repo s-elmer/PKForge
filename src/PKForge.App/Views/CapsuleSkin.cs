@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using PKForge.App.Theme;
+using PKForge.Chrome;
 #if ANDROID
 using Android.Graphics.Drawables;
 using Google.Android.Material.Button;
@@ -58,6 +59,7 @@ public static class CapsuleSkin
     private static bool _registered;
     private static readonly ConditionalWeakTable<MaterialButton, StateListDrawable> Skins = new();
     private static readonly ConditionalWeakTable<MaterialButton, object> Hooked = new();
+    // Icons tinted with theme colors, keyed by theme version so a new theme never reuses old pixels.
     private static readonly Dictionary<string, Android.Graphics.Bitmap> Bitmaps = new(StringComparer.Ordinal);
 
     private static bool Near(Color a, Color b) =>
@@ -144,7 +146,7 @@ public static class CapsuleSkin
             fill.SetStroke(stroke, Native(edge));
 
             var light = new GradientDrawable();
-            light.SetColor(Native(Colors.White.WithAlpha(pressed || !enabled ? 0.06f : state.Primary ? 0.34f : 0.22f)));
+            light.SetColor(Native(UiTokens.Bright.WithAlpha(pressed || !enabled ? 0.06f : state.Primary ? 0.34f : 0.22f)));
 
             var strip = new GradientDrawable();
             var stripColor = state.Strip is { } sc && !state.Focused ? (enabled ? sc : sc.WithAlpha(0.35f)) : Colors.Transparent;
@@ -207,7 +209,7 @@ public static class CapsuleSkin
                 var neutral = button.BackgroundColor is null || Near(button.BackgroundColor, UiTokens.ButtonTop);
                 var tint = neutral && !state.Focused ? PksmIcons.Cyan : PksmIcons.White;
                 var px = (int)Dp(native, Math.Round(button.FontSize + 3));
-                var key = $"{icon}|{tint}|{px}";
+                var key = $"{icon}|{tint}|{px}|{ColorTheme.Version}";
                 if (!Bitmaps.TryGetValue(key, out var bmp))
                 {
                     var png = PksmIcons.GetPng(icon, tint);

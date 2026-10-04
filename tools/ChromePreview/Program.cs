@@ -23,6 +23,13 @@ if (args.Length > 0 && args[0] == "storage")
     StoragePreview.Render(root, args.Length > 1 ? args[1] : Path.Combine(root, "tools/ChromePreview/out/storage_box.png"));
     return;
 }
+if (args.Length > 0 && args[0] == "themes")
+{
+    // The storage box and editor panel in every color theme, next to the artist's mockups.
+    // Usage: dotnet run --project tools/ChromePreview -- themes [output-dir]
+    ThemeSheet.Render(root, args.Length > 1 ? args[1] : Path.Combine(root, "tools/ChromePreview/out/themes"));
+    return;
+}
 if (args.Length > 0 && args[0] == "editor")
 {
     // The Pokémon editor panel in the designer's direction (EditorPaint).

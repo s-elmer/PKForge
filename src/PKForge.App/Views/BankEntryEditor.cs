@@ -410,7 +410,7 @@ public static class BankEntryEditor
                     1 => new SKColor(0xF0, 0x68, 0x68),
                     2 => Pksm.ShinyGold,
                     3 => Pksm.Legal,
-                    _ => EditorPaint.Cyan,
+                    _ => Pksm.SignalBlue,
                 };
                 SummaryInk.Draw(c, "IV rank", 600, SummaryInk.Center(extraY, text), text, EditorPaint.Label);
                 SummaryInk.Draw(c, new string('★', stars) + new string('☆', 4 - stars), 760, SummaryInk.Center(extraY, 38), 38, color);

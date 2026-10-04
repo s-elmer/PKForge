@@ -405,7 +405,7 @@ public static class DsChrome
                 new BoxView { Color = UiTokens.ShellEdge, HeightRequest = 2, VerticalOptions = LayoutOptions.End, InputTransparent = true },
                 new Label
                 {
-                    Text = title, FontFamily = PixelFont, FontSize = 16, TextColor = Colors.White, VerticalTextAlignment = TextAlignment.Center,
+                    Text = title, FontFamily = PixelFont, FontSize = 16, TextColor = UiTokens.Bright, VerticalTextAlignment = TextAlignment.Center,
                     HorizontalOptions = LayoutOptions.Center, HorizontalTextAlignment = TextAlignment.Center,
                 },
             },

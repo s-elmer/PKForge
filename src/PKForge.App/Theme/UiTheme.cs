@@ -98,6 +98,7 @@ public static class UiTokens
     public static readonly Color Bad = As(Pksm.Illegal);
     public static Color DefaultAccent => Themed(Cyan);
 
+    public static Color Bright => Themed(As(ColorTheme.Current.Bright));   // pure white chrome: titles, highlights
     public static Color WorldText => Themed(As(Pksm.Ink));
     public static Color WorldTextMuted => Themed(As(Pksm.InkSoft));
     public static Color OnAccent => Themed(As(Pksm.LogoVoid));

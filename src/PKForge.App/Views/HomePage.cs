@@ -26,8 +26,6 @@ public sealed class HomePage : ContentPage, IPadHandler
     {
         _viewModel = viewModel;
         BindingContext = viewModel;
-        _viewModel.LinkReported += (title, message) =>
-            MainThread.BeginInvokeOnMainThread(() => _ = PadMenu.ShowAsync(_hostGrid, title, message, "OK"));
         Title = "PKForge";
         BackgroundColor = UiTokens.Housing;
         NavigationPage.SetHasNavigationBar(this, false);
@@ -210,11 +208,13 @@ public sealed class HomePage : ContentPage, IPadHandler
         };
     }
 
-    private bool _welcomeShown;
-    private bool _scannedOnce;
-    private bool _updateCheckQueued;
+    // Once per launch, not per page: a color scheme change rebuilds Home, and the new page
+    // must not scan, welcome or check for updates again.
+    private static bool _welcomeShown;
+    private static bool _scannedOnce;
+    private static bool _updateCheckQueued;
     private bool _isAppearing;
-    private bool _resumeSubscribed;
+    private bool _eventsSubscribed;
     private AvailableAppUpdate? _pendingAuthorizedUpdate;
 
     /// <summary>The Thor's lower screen is on from launch - the app *is* dual-screen.</summary>
@@ -233,10 +233,11 @@ public sealed class HomePage : ContentPage, IPadHandler
         // The lower screen shows the shelf's highlighted game while Home is in front.
         _secondClaim ??= IPlatformApplication.Current?.Services.GetService<SecondScreenState>()?.Routes.CreateClaim(SecondScreenOwner.Home);
         _secondClaim?.Activate();
-        if (!_resumeSubscribed)
+        if (!_eventsSubscribed)
         {
             App.Resumed += OnAppResumed;
-            _resumeSubscribed = true;
+            _viewModel.LinkReported += OnLinkReported;
+            _eventsSubscribed = true;
         }
         _zone = 0;
         ClearCardFocus();
@@ -323,13 +324,17 @@ public sealed class HomePage : ContentPage, IPadHandler
         base.OnDisappearing();
         _isAppearing = false;
         _secondClaim?.Release();
-        if (_resumeSubscribed)
+        if (_eventsSubscribed)
         {
             App.Resumed -= OnAppResumed;
-            _resumeSubscribed = false;
+            _viewModel.LinkReported -= OnLinkReported;
+            _eventsSubscribed = false;
         }
         IPlatformApplication.Current?.Services.GetService<GamepadRouter>()?.Remove(this);
     }
+
+    private void OnLinkReported(string title, string message) =>
+        MainThread.BeginInvokeOnMainThread(() => _ = PadMenu.ShowAsync(_hostGrid, title, message, "OK"));
 
     /// <summary>Android settings do not trigger MAUI page appearing again; resume does.</summary>
     private void OnAppResumed()
@@ -879,6 +884,8 @@ public sealed class HomePage : ContentPage, IPadHandler
             new PadOption("Share logs", IconPath: "export", Detail: "Crash reports and recent activity, to send us when something goes wrong."),
             new PadOption(SecondScreenMode.UserOff ? "Second screen: OFF" : "Second screen: ON", IconPath: "compact",
                 Detail: "OFF keeps PKForge on one screen, so the other stays free (an emulator, say)."),
+            new PadOption($"Color scheme: {PKForge.Chrome.ColorTheme.Current.Name}", IconPath: "type",
+                Detail: "The app's colors: the default blues or a theme for each type."),
             new PadOption($"Box background: {BoxBackground.Name(BoxBackground.Style)}", IconPath: "box",
                 Detail: "How each PC box shows the wallpaper the game gives it."),
             new PadOption(Services.HaXMode.IsOn ? "HaX mode: ON" : "HaX mode: OFF", IconPath: "hax",
@@ -909,6 +916,15 @@ public sealed class HomePage : ContentPage, IPadHandler
             case "Share logs":
                 await ShareLogsAsync();
                 break;
+            case var scheme when scheme?.StartsWith("Color scheme:", StringComparison.Ordinal) == true:
+            {
+                var theme = await ThemePicker.ShowAsync(_hostGrid);
+                if (theme is null || theme.Id == PKForge.Chrome.ColorTheme.Current.Id) break;
+                ColorThemeSetting.Set(theme);
+                AppLog.Info("theme", $"Player picked the {theme.Id} color scheme");
+                if (Application.Current is App app) await app.ReloadForThemeAsync();
+                break;
+            }
             case var background when background?.StartsWith("Box background:", StringComparison.Ordinal) == true:
             {
                 var styles = Enum.GetValues<PKForge.Chrome.StoragePaint.WallpaperStyle>();
@@ -1002,7 +1018,7 @@ public sealed class HomePage : ContentPage, IPadHandler
         }
     }
 
-    private bool _crashOffered;
+    private static bool _crashOffered;
 
     /// <summary>After a crash, offers the report once on the next launch.</summary>
     private async Task OfferCrashReportAsync()

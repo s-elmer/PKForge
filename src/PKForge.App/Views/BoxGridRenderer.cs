@@ -320,7 +320,7 @@ public static class BoxGridRenderer
             // invalidate is expected to be a coalescing, thread-safe repaint request.
             sprites.Warm(look, invalidate);
             PksmPaint.CenterText(canvas, slot.Nickname ?? $"#{slot.Species}", cell.MidX, cell.MidY - lift,
-                ink.Font, SKColors.White, ink.Shadow, SKTextAlign.Center);
+                ink.Font, ColorTheme.Current.Bright, ink.Shadow, SKTextAlign.Center);
             return;
         }
         // PKHeX's art fits a square tile and stands on the ground line with the icons.

@@ -17,23 +17,25 @@ public static class Kit
 {
     /// <summary>
     /// The page housing backdrop: the logo's crisp navy/cobalt grid.
-    /// Prerendered once per size — no per-frame paint storms.
+    /// Prerendered once per size and color theme — no per-frame paint storms.
     /// </summary>
     public static SKCanvasView DeviceBackground()
     {
         var canvasView = new SKCanvasView { InputTransparent = true };
         SKBitmap? prerendered = null;
         var prerenderedSize = new SKSizeI(-1, -1);
+        var prerenderedTheme = -1;
 
         canvasView.PaintSurface += (_, args) =>
         {
             var info = args.Info;
             if (info.Width <= 0 || info.Height <= 0) return;
-            if (prerendered is null || prerenderedSize != info.Size)
+            if (prerendered is null || prerenderedSize != info.Size || prerenderedTheme != ColorTheme.Version)
             {
                 prerendered?.Dispose();
                 prerendered = RenderBackdrop(info);
                 prerenderedSize = info.Size;
+                prerenderedTheme = ColorTheme.Version;
             }
             args.Surface.Canvas.DrawBitmap(prerendered, 0, 0);
         };
@@ -559,14 +561,14 @@ public static class Kit
             : new LinearGradientBrush([new GradientStop(UiTokens.ButtonTop, 0), new GradientStop(UiTokens.ButtonBottom, 1)], new Point(0, 0), new Point(0, 1));
         tab.Stroke = active ? UiTokens.Rim : UiTokens.ButtonEdge;
         tab.StrokeThickness = active ? 1.2 : UiTokens.ControlEdge;
-        if (tab.Content is Label label) label.TextColor = active ? Colors.White : UiTokens.InkSoft;
+        if (tab.Content is Label label) label.TextColor = active ? UiTokens.Bright : UiTokens.InkSoft;
     }
 
     /// <summary>A blinky device indicator light (static for now; animation comes later).</summary>
     public static Ellipse StatusLight(Color color, double size = 12) => new()
     {
         Fill = new SolidColorBrush(color),
-        Stroke = new SolidColorBrush(Colors.White.WithAlpha(0.55f)),
+        Stroke = new SolidColorBrush(UiTokens.Bright.WithAlpha(0.55f)),
         StrokeThickness = 1.5,
         WidthRequest = size,
         HeightRequest = size,
@@ -604,7 +606,7 @@ public static class Kit
             Content = new Label
             {
                 Text = title,
-                TextColor = Colors.White,
+                TextColor = UiTokens.Bright,
                 FontFamily = DsChrome.PixelFont,
                 FontSize = UiTokens.TextTitle + 1,
                 VerticalTextAlignment = TextAlignment.Center,

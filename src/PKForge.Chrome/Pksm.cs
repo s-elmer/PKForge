@@ -88,6 +88,8 @@ public static class Pksm
     public static readonly SKColor ShinyGold = new(0xF2, 0xC1, 0x4E);     // ONLY the shiny mark
     public static readonly SKColor CursorRed = new(0xF0, 0x68, 0x68);     // pointer + destructive
     public static readonly SKColor CursorGreen = new(0x54, 0xD6, 0x8A);   // multi-select pointer (the games' green hand)
+    public static readonly SKColor SignalBlue = new(0x42, 0xBF, 0xE8);    // fixed blue: the male glyph, the blue marking, four IV stars
+    public static readonly SKColor Female = new(0xF0, 0x7A, 0x9B);        // the female glyph
     public static SKColor FocusBlue => T.Cyan;
 
     /// <summary>Per-box wallpapers in the storage world: dark tinted worlds, cycling.</summary>

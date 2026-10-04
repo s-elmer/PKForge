@@ -439,7 +439,7 @@ public static class PartyView
     /// <summary>The gender glyphs as clean vectors: blue male arrow, pink female cross.</summary>
     private static void DrawGender(SKCanvas canvas, SKPoint center, float radius, bool male)
     {
-        var color = male ? Pksm.LogoCyan : new SKColor(0xF0, 0x7A, 0x9B);
+        var color = male ? Pksm.SignalBlue : Pksm.Female;
         using var paint = new SKPaint { Color = color, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = Math.Max(2f, radius * 0.32f) };
         if (male)
         {

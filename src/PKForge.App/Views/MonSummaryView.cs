@@ -791,7 +791,7 @@ public sealed class MonSummaryView : ContentView
         {
             var value = markings[i].Value;
             // Gen 7+ markings are two-colour (1 blue, 2 red); older games only have "on".
-            var color = value == 0 ? LabelInk : value == 2 ? Pksm.Illegal : Pksm.SelectBorder;
+            var color = value == 0 ? LabelInk : value == 2 ? Pksm.Illegal : Pksm.SignalBlue;
             x += SummaryInk.Draw(c, i < MarkingGlyphs.Length ? MarkingGlyphs[i] : "•", x, SummaryInk.Center(cy, 38), 38, color) + 10;
         }
     }
