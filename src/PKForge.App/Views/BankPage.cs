@@ -952,15 +952,16 @@ public sealed class BankPage : ContentPage, IPadPagingHandler
     /// <summary>Keepsakes: the selection is copied, each copy landing in the first gap.</summary>
     private void DuplicateSelection(List<BankEntry> selection)
     {
-        var cloned = 0;
-        foreach (var entry in selection)
+        // One index write: every copy lands, or none does.
+        try { _bank.AddMany([.. selection.Select(e => new BankDeposit(_bank.GetData(e.Id), e.Info))]); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            _bank.Add(_bank.GetData(entry.Id), entry.Info);
-            cloned++;
+            _boxViewModel.Status = $"Nothing was cloned: {error.Message}";
+            return;
         }
         FinishOrganizer(selection.Count == 1
             ? $"{selection[0].Info.Nickname} cloned in the bank."
-            : $"{cloned} Pokémon cloned in the bank.");
+            : $"{selection.Count} Pokémon cloned in the bank.");
     }
 
     private async Task ReleaseSelectionAsync(List<BankEntry> selection)
@@ -976,10 +977,10 @@ public sealed class BankPage : ContentPage, IPadPagingHandler
     }
 
     /// <summary>
-    /// Sends the whole selection to one game. The connected save takes them into its empty
-    /// slots in a single safe write; any other detected game receives them one at a time
-    /// through the transfer service, previewed once. Only mons that arrived leave the bank;
-    /// every write goes through the same validate → backup → atomic path as the boxes.
+    /// Sends the whole selection to one game, all or none. The connected save or any other
+    /// detected game takes every one in a single safe write (validate → backup → atomic), previewed
+    /// once, or nothing is written when one cannot enter; only then does the selection leave the
+    /// bank in one index write, and if the bank cannot let go the game gives them back.
     /// </summary>
     private async Task SendSelectionToGameAsync(List<BankEntry> selection)
     {
@@ -990,83 +991,63 @@ public sealed class BankPage : ContentPage, IPadPagingHandler
         var picked = await PickDestinationAsync($"{selection.Count} selected → pick the destination");
         if (picked is not { } destinationPick) return;
 
-        var sent = new List<Guid>();
-        var destination = destinationPick.Label;
+        var items = selection.Select(e => new PKForge.Engine.TransferItem(_bank.GetData(e.Id), e.Info.Format, e.Info.Nickname)).ToArray();
+        var ids = selection.Select(e => e.Id).ToArray();
+        var subject = selection.Count == 1 ? selection[0].Info.Nickname : $"{selection.Count} Pokémon";
+        PKForge.Engine.BatchTransferOutcome outcome;
         if (destinationPick.Other is null)
         {
-            var rooms = _boxViewModel.Save?.Slots.Where(s => s.Species is null)
-                .OrderBy(s => s.Box).ThenBy(s => s.Slot).ToList();
-            if (rooms is not { Count: > 0 })
+            const string destination = "the connected game";
+            var open = SlotPlanning.FreeSlotsFrom(_boxViewModel.Save?.Slots ?? [], null).ToArray();
+            if (open.Length == 0)
             {
                 _boxViewModel.Status = "No empty slot in the connected game.";
                 return;
             }
-            var open = rooms.ToArray();
             // Same trust step as a game-to-game send: the first mon's diff and warnings
             // (a backwards conversion lists its compromises) stand for the batch.
-            var firstPick = selection[0];
-            var connectedPreview = transfer.PreviewIntoConnected(_bank.GetData(firstPick.Id), firstPick.Info.Nickname, open[0].Box, open[0].Slot, firstPick.Info.Format);
-            if (!await Services.TransferPreviewPrompt.ConfirmAsync(_hostGrid, connectedPreview,
-                    selection.Count == 1 ? firstPick.Info.Nickname : $"{selection.Count} Pokémon", "the connected game"))
+            var connectedPreview = transfer.PreviewIntoConnected(items[0].Data, items[0].Nickname, open[0].Box, open[0].Slot, items[0].Format);
+            if (!await Services.TransferPreviewPrompt.ConfirmAsync(_hostGrid, connectedPreview, subject, destination))
                 return;
-            var ok = await _boxViewModel.RunMutationAsync(session =>
-            {
-                var placed = 0;
-                foreach (var entry in selection)
+            var rooms = open.Take(items.Length).ToArray();
+            outcome = await PKForge.Engine.BankTransfers.WithdrawAsync(_bank, ids, destination,
+                async () => await _boxViewModel.RunMutationAsync(session =>
+                    PKForge.Engine.BankTransfers.ImportAll(session, items, rooms, out var refusal) is var failed and >= 0
+                        ? new GenerationOutcome(false, failed >= items.Length
+                            ? $"the connected game has room for {rooms.Length} of {items.Length} Pokémon."
+                            : refusal is null
+                                ? Services.TransferService.Refusal(items[failed].Data, items[failed].Nickname, session.Snapshot, destination, items[failed].Format)
+                                : $"{items[failed].Nickname} cannot go to {destination}. {refusal}")
+                        : new GenerationOutcome(true, $"{subject} joined the game."),
+                    Math.Max(0, _selectedSlot), refreshSlot: false, action: SaveAction.Move) ? null : _boxViewModel.Status,
+                async () => await _boxViewModel.RunMutationAsync(session =>
                 {
-                    if (placed >= open.Length) break;
-                    var room = open[placed];
-                    if (!Services.TransferService.TryImport(session, room.Box, room.Slot, _bank.GetData(entry.Id), out _, entry.Info.Format)) continue;
-                    sent.Add(entry.Id);
-                    placed++;
-                }
-                return placed == 0
-                    ? new GenerationOutcome(false, "None of the selection can enter this game's format.")
-                    : new GenerationOutcome(true, $"{placed} of {selection.Count} joined the game.");
-            }, Math.Max(0, _selectedSlot), refreshSlot: false, action: SaveAction.Move);
-            if (!ok) return;
-            destination = "the connected game";
+                    foreach (var room in rooms) session.ReleaseSlot(room.Box, room.Slot);
+                    return new GenerationOutcome(true, $"{subject} went back to the bank.");
+                }, Math.Max(0, _selectedSlot), refreshSlot: false, action: SaveAction.Move) ? null : _boxViewModel.Status);
         }
         else
         {
             var target = destinationPick.Other;
-            var first = selection[0];
-            var preview = await transfer.PreviewAsync(_bank.GetData(first.Id), first.Info.Nickname, target, format: first.Info.Format);
-            if (!await Services.TransferPreviewPrompt.ConfirmAsync(_hostGrid, preview,
-                    selection.Count == 1 ? first.Info.Nickname : $"{selection.Count} Pokémon", target.GameLabel))
+            var preview = await transfer.PreviewAsync(items[0].Data, items[0].Nickname, target, format: items[0].Format);
+            if (!await Services.TransferPreviewPrompt.ConfirmAsync(_hostGrid, preview, subject, target.GameLabel))
                 return;
-            string? stopped = null;
-            foreach (var entry in selection)
-            {
-                try
+            IReadOnlyList<SlotRef> landed = [];
+            outcome = await PKForge.Engine.BankTransfers.WithdrawAsync(_bank, ids, target.GameLabel,
+                async () =>
                 {
-                    var outcome = await transfer.SendToGameAsync(_bank.GetData(entry.Id), entry.Info.Nickname, target, format: entry.Info.Format);
-                    if (outcome.Success) sent.Add(entry.Id);
-                }
-                catch (Exception error)
+                    (var refusal, landed) = await transfer.SendManyToGameAsync(items, target, $"{subject} arrived from the bank");
+                    return refusal;
+                },
+                async () =>
                 {
-                    // Every mon already written to the game still leaves the bank below: no duplicates.
-                    stopped = error.Message;
-                    break;
-                }
-            }
-            if (sent.Count == 0)
-            {
-                _boxViewModel.Status = stopped is null
-                    ? $"None of the selection could enter {target.GameLabel}'s format."
-                    : $"Aborted: {stopped}";
-                return;
-            }
-            if (stopped is not null)
-            {
-                _bank.RemoveMany(sent);
-                FinishOrganizer($"{sent.Count} of {selection.Count} Pokémon left the bank for {destination}, then it stopped: {stopped}");
-                return;
-            }
+                    await transfer.ReleaseFromGameAsync(target, landed, $"{subject} went back to the bank");
+                    return null;
+                });
         }
 
-        _bank.RemoveMany(sent);
-        FinishOrganizer($"{sent.Count} of {selection.Count} Pokémon left the bank for {destination}.");
+        if (outcome.Success || outcome.Duplicated) FinishOrganizer(outcome.Message);
+        else _boxViewModel.Status = outcome.Message;
     }
 
     /// <summary>
@@ -1484,17 +1465,29 @@ public sealed class BankPage : ContentPage, IPadPagingHandler
                 var access = IPlatformApplication.Current?.Services.GetService<ISaveFileAccess>();
                 if (picker is null || access is null) return;
                 var documents = await picker.PickManyAsync();
-                var count = 0;
+                if (documents.Count == 0) return;
                 var engine = IPlatformApplication.Current!.Services.GetRequiredService<ISaveEngine>();
+                // All or none: every file is read first, then the bank takes them in one write.
+                var deposits = new List<BankDeposit>(documents.Count);
                 foreach (var document in documents)
                 {
                     var bytes = (await access.ReadAsync(document.DocumentId)).ToArray();
-                    var parsed = engine.TryDescribeEntity(bytes, document.DisplayName, document.DisplayName); // the extension names the format
-                    if (parsed is null) continue;
-                    _bank.Add(bytes, parsed);
-                    count++;
+                    if (engine.TryDescribeEntity(bytes, document.DisplayName, document.DisplayName) is not { } parsed) // the extension names the format
+                    {
+                        _boxViewModel.Status = $"Nothing was deposited: {document.DisplayName} is not a recognizable Pokémon.";
+                        return;
+                    }
+                    deposits.Add(new BankDeposit(bytes, parsed));
                 }
-                _boxViewModel.Status = count > 0 ? $"Deposited {count} Pokémon into the bank." : "No recognizable Pokémon in those files.";
+                try
+                {
+                    _bank.AddMany(deposits);
+                    _boxViewModel.Status = $"Deposited {deposits.Count} Pokémon into the bank.";
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
+                {
+                    _boxViewModel.Status = $"Nothing was deposited: {error.Message}";
+                }
                 RefreshBoxEntries();
                 _canvas.InvalidateSurface();
                 return;

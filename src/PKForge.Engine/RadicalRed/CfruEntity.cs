@@ -96,25 +96,46 @@ internal static class CfruEntity
         return cfru.LooksValid ? CfruEngineSession.Describe(cfru, format, sourceName) : null;
     }
 
-    /// <summary>The PK3 every other game imports, or null when the species has no Gen 3 counterpart.</summary>
-    public static PK3? ToPk3(byte[] bytes, string format)
+    /// <summary>The PK3 every other game imports, or null when the bytes are not a mon of that
+    /// game or one of its ids has no Generation 3 counterpart (<see cref="Pk3Refusal"/> says which).</summary>
+    public static PK3? ToPk3(byte[] bytes, string format) => ToPk3(bytes, format, out _);
+
+    /// <summary>Why these bytes have no PK3 for other games, or null when they convert.</summary>
+    public static string? Pk3Refusal(byte[] bytes, string format)
     {
+        ToPk3(bytes, format, out var refusal);
+        return refusal;
+    }
+
+    private static PK3? ToPk3(byte[] bytes, string format, out string? refusal)
+    {
+        refusal = null;
         if (bytes.Length != RadicalRedFormat.PcMonSize) return null;
-        PK3 pk3;
         if (format == Unbound)
         {
             var mon = new UnboundMon(bytes.ToArray(), 0, party: false);
-            if (!mon.LooksValid) return null;
-            pk3 = UnboundEngineSession.ToPk3(mon);
+            return mon.LooksValid ? UnboundEngineSession.ToPk3(mon, out refusal) : null;
         }
-        else
-        {
-            var mon = new RadicalRedMon(bytes.ToArray(), 0, false, DataOf(format));
-            if (!mon.LooksValid) return null;
-            pk3 = CfruEngineSession.ToPk3(mon);
-        }
-        return pk3.Species == 0 ? null : pk3;
+        var cfru = new RadicalRedMon(bytes.ToArray(), 0, false, DataOf(format));
+        return cfru.LooksValid ? CfruEngineSession.ToPk3(cfru, out refusal) : null;
     }
+
+    /// <summary>Why <paramref name="entity"/> cannot enter the CFRU game whose snapshot reports
+    /// <paramref name="snapshotTag"/> (it crosses as a PK3, like the import itself), or null when
+    /// it can or the tag names no CFRU game.</summary>
+    public static string? ImportRefusal(PKM entity, string snapshotTag)
+    {
+        var unbound = snapshotTag == UnboundEngineSession.SnapshotTag;
+        var profile = Array.Find(Profiles, p => p.SnapshotTag == snapshotTag);
+        if (!unbound && profile is null) return null;
+        if ((entity as PK3 ?? EntityConverter.ConvertToType(entity, typeof(PK3), out _) as PK3) is not { } pk3) return null;
+        string? refusal;
+        if (unbound) UnboundEngineSession.Landing(pk3, out refusal);
+        else CfruEngineSession.Landing(pk3, profile!.Data, profile.GameName, out refusal);
+        return refusal;
+    }
+
+    private static readonly CfruGameProfile[] Profiles = [RadicalRedEngineSession.Profile, GsChroniclesEngineSession.Profile];
 
     /// <summary>Egg flag, gender (0/1/2), PKHeX ball and held item for the Bank's sorts and
     /// filters, read through the hack's tables; null when the bytes are not a mon.</summary>

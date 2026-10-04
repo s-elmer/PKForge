@@ -93,7 +93,7 @@ public static class BankArchive
             known.Add(Sha256Hex(bank.GetData(entry.Id)));
         }
 
-        var imported = 0;
+        var deposits = new List<BankDeposit>();
         var skipped = 0;
         var rejected = 0;
         for (var i = 0; i < candidates.Length; i++)
@@ -111,11 +111,12 @@ public static class BankArchive
                 skipped++;
                 continue;
             }
-            bank.Add(bytes, info);
-            imported++;
+            deposits.Add(new BankDeposit(bytes, info));
         }
         progress?.Invoke(candidates.Length, candidates.Length);
-        return new BankArchiveImportResult(imported, skipped, rejected);
+        // One bank write once every file is read: a failure or a cancel leaves the bank untouched.
+        bank.AddMany(deposits);
+        return new BankArchiveImportResult(deposits.Count, skipped, rejected);
     }
 
     /// <summary>File name for one entry: "025 - Sparky a1b2c3d4.pk7". The short id keeps

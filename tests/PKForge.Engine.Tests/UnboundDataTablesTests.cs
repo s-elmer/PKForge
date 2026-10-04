@@ -184,11 +184,11 @@ public sealed class UnboundDataTablesTests
         Assert.Equal(0, mon.Move3);
         Assert.Contains(mon.Ability, reopened.GetAbilityChoices(903, 0));
 
-        // The PK3 other games import speaks PKHeX ids, not the ROM's 369/365.
+        // Sneasler has no Generation 3 counterpart: other games get no PK3 at all, never one
+        // holding a different species or the ROM's 369/365 as move ids.
         var export = reopened.ExportSlot(-1, 0).Data;
-        var pk3 = UnboundEngineSession.ToPk3(new UnboundMon(export, 0, party: false)); // (PK3 cannot hold species past Gen 3; moves are u16)
-        Assert.Equal(434, pk3.Move1);
-        Assert.Equal(370, pk3.Move2);
+        Assert.Null(UnboundEngineSession.ToPk3(new UnboundMon(export, 0, party: false), out var refusal));
+        Assert.Equal("Sneasler does not exist in Generation 3.", refusal);
     }
 
     [Fact]

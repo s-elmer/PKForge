@@ -959,7 +959,7 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
     private static int? ParseInt(string text) =>
         int.TryParse(text.Trim(), out var value) ? value : null;
 
-    private static string SlotLabel(int box, int slot) => box == -1 ? $"Party {slot + 1}" : $"Box {box + 1}, Slot {slot + 1}";
+    internal static string SlotLabel(int box, int slot) => box == -1 ? $"Party {slot + 1}" : $"Box {box + 1}, Slot {slot + 1}";
 
     private static string EditorSubject(Domain.EntityDetail detail) =>
         string.IsNullOrWhiteSpace(detail.Nickname) ? "Pokémon" : detail.Nickname;

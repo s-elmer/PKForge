@@ -24,6 +24,7 @@ internal sealed class UnboundEngineSession : ISaveEngineSession
     private bool _disposed;
 
     public const int Boxes = 25; // 0-18 stream, 19-23 fragmented, 24 preset
+    public const string SnapshotTag = "UNBOUND";
 
     public UnboundEngineSession(ReadOnlyMemory<byte> bytes, string? displayName = null)
     {
@@ -554,13 +555,14 @@ internal sealed class UnboundEngineSession : ISaveEngineSession
             entity = converted;
         }
         var pk3 = (PK3)entity;
+        if (Landing(pk3, out _) is not { } ids) return false;
 
         if (box == -1)
         {
             if (PartyCount >= 6) return false;
             var party = new UnboundMon(_data, PartyBase + PartyOffset + PartyCount * PartyMonSize, party: true);
             _data.AsSpan(party.Offset, PartyMonSize).Clear();
-            FromPk3(pk3, party);
+            FromPk3(pk3, ids, party);
             BinaryPrimitives.WriteUInt32LittleEndian(_data.AsSpan(PartyBase + PartyCountOffset), (uint)(PartyCount + 1));
             CommitParty();
             return true;
@@ -572,7 +574,7 @@ internal sealed class UnboundEngineSession : ISaveEngineSession
             ? new UnboundMon(_stream, location.Value.Offset, party: false)
             : new UnboundMon(_data, location.Value.Offset, party: false);
         target.Buffer.AsSpan(target.Offset, PcMonSize).Clear();
-        FromPk3(pk3, target);
+        FromPk3(pk3, ids, target);
         CommitPc(location);
         return true;
     }
@@ -601,22 +603,30 @@ internal sealed class UnboundEngineSession : ISaveEngineSession
         BinaryPrimitives.WriteUInt16LittleEndian(party.Buffer.AsSpan(party.Offset + 0x56), (ushort)party.PartyStats![0]);
     }
 
-    private static void FromPk3(PK3 pk3, UnboundMon target)
+    /// <summary>The Unbound ids <paramref name="pk3"/> lands with, or null with the reason one
+    /// of its national ids has no counterpart in Unbound's tables.</summary>
+    internal static CfruPk3.Inbound? Landing(PK3 pk3, out string? refusal) =>
+        CfruPk3.FromPk3(pk3, "Unbound", UnboundData.SpeciesFromNational, UnboundData.MoveFromNational, UnboundData.ItemFromNational,
+            species => UnboundData.AbilityIds(species) is var (a1, a2, hidden)
+                ? (UnboundData.AbilityToNational(a1), UnboundData.AbilityToNational(a2), UnboundData.AbilityToNational(hidden))
+                : default,
+            ball => UnboundMon.TryStoreBall(ball, out var stored) ? stored : -1, out refusal);
+
+    private static void FromPk3(PK3 pk3, CfruPk3.Inbound ids, UnboundMon target)
     {
-        target.Species = UnboundData.SpeciesFromNational(pk3.Species);
-        target.HeldItem = UnboundData.ItemFromNational(ItemConverter.GetItemFuture3((ushort)pk3.HeldItem));
+        target.Species = ids.Species;
+        target.HeldItem = ids.HeldItem;
         target.Experience = Math.Max(pk3.EXP, 1u);
         target.Pid = pk3.PID;
         target.Otid = pk3.ID32;
         target.Nickname = pk3.Nickname.Length > 0 ? pk3.Nickname : UnboundData.SpeciesName(target.Species);
-        target.Moves = [UnboundData.MoveFromNational(pk3.Move1), UnboundData.MoveFromNational(pk3.Move2),
-            UnboundData.MoveFromNational(pk3.Move3), UnboundData.MoveFromNational(pk3.Move4)];
+        target.Moves = ids.Moves;
         Span<int> ivs = stackalloc int[6]; // PKHeX order: HP, Atk, Def, Spe, SpA, SpD
         pk3.GetIVs(ivs);
         target.IVs = [ivs[0], ivs[1], ivs[2], ivs[4], ivs[5], ivs[3]]; // -> app order HP, Atk, Def, SpA, SpD, Spe
         target.EVs = [pk3.EV_HP, pk3.EV_ATK, pk3.EV_DEF, pk3.EV_SPA, pk3.EV_SPD, pk3.EV_SPE];
-        target.Ball = 3;
-        target.HiddenAbility = false;
+        target.Ball = ids.Ball;
+        target.HiddenAbility = ids.HiddenAbility;
         target.Buffer[target.Offset + 0x12] = (byte)Math.Clamp(pk3.Language, 1, 5);
         target.Buffer[target.Offset + 0x13] = 2; // hasSpecies, as the game sets it
         WriteOtName(target, pk3.OriginalTrainerName);
@@ -668,27 +678,25 @@ internal sealed class UnboundEngineSession : ISaveEngineSession
         new(UnboundData.NationalIdOf(mon.Species), 0, mon.IsShiny, mon.Nickname, mon.Level, 3, sourceName,
             CfruEntity.Unbound, HeldItemId(mon), default(SpriteTraits));
 
-    /// <summary>The PK3 another game imports: national ids where Gen 3 has them, none of
-    /// the CFRU-only fields. Only Unbound itself reads the exact record.</summary>
-    internal static PK3 ToPk3(UnboundMon mon)
+    /// <summary>The PK3 another game imports: every id bridged to its national twin through
+    /// Unbound's tables, none of the CFRU-only fields (only Unbound itself reads the exact
+    /// record). Null with the reason when an id has no Generation 3 counterpart.</summary>
+    internal static PK3? ToPk3(UnboundMon mon, out string? refusal)
     {
-        var pk3 = new PK3
-        {
-            Species = (ushort)UnboundData.NationalIdOf(mon.Species),
-            PID = mon.Pid,
-            ID32 = mon.Otid,
-            Nickname = mon.Nickname,
-            IsNicknamed = true,
-            HeldItem = ItemConverter.GetItemOld3((ushort)UnboundData.ItemToNational(mon.HeldItem)),
-            EXP = mon.Experience,
-            Move1 = (ushort)UnboundData.MoveToNational(mon.Moves[0]),
-            Move2 = (ushort)UnboundData.MoveToNational(mon.Moves[1]),
-            Move3 = (ushort)UnboundData.MoveToNational(mon.Moves[2]),
-            Move4 = (ushort)UnboundData.MoveToNational(mon.Moves[3]),
-            OriginalTrainerName = mon.OriginalTrainerName,
-            Language = (int)LanguageID.English,
-            Version = GameVersion.FR,
-        };
+        var national = UnboundData.NationalIdOf(mon.Species);
+        var pk3 = CfruPk3.ToPk3(new CfruPk3.Outbound(
+            UnboundData.SpeciesName(mon.Species), national, UnboundData.SpeciesFromNational(national) == mon.Species, mon.Pid,
+            [.. mon.Moves.Select(move => (move, UnboundData.MoveToNational(move), UnboundData.MoveName(move)))],
+            mon.HeldItem, UnboundData.ItemToNational(mon.HeldItem), UnboundData.ItemName(mon.HeldItem),
+            mon.HiddenAbility, UnboundData.AbilityToNational(UnboundData.ActiveAbility(mon)), mon.DisplayBall), out refusal);
+        if (pk3 is null) return null;
+        pk3.ID32 = mon.Otid;
+        pk3.Nickname = mon.Nickname;
+        pk3.IsNicknamed = true;
+        pk3.EXP = mon.Experience;
+        pk3.OriginalTrainerName = mon.OriginalTrainerName;
+        pk3.Language = (int)LanguageID.English;
+        pk3.Version = GameVersion.FR;
         var ivs = mon.IVs;
         pk3.SetIVs([ivs[0], ivs[1], ivs[2], ivs[5], ivs[3], ivs[4]]); // storage -> PKHeX order
         pk3.SetEVs([mon.EVs[0], mon.EVs[1], mon.EVs[2], mon.EVs[5], mon.EVs[4], mon.EVs[3]]);
@@ -719,7 +727,7 @@ internal sealed class UnboundEngineSession : ISaveEngineSession
                 ? new SlotSummary(-1, slot, UnboundData.NationalIdOf(valid.Species), valid.Nickname, valid.IsShiny, true, HeldItem: HeldItemId(valid))
                 : new SlotSummary(-1, slot, null, null, false, true));
         }
-        return new SaveSnapshot("UNBOUND", 3, _originalBytes.ToArray(), slots, displayName);
+        return new SaveSnapshot(SnapshotTag, 3, _originalBytes.ToArray(), slots, displayName);
     }
 
     public ReadOnlyMemory<byte> Serialize()

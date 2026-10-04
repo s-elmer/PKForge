@@ -294,15 +294,20 @@ public sealed class CfruBankRoundTripTests : IDisposable
     {
         if (Demo(RadicalRedSave) is not { } bytes || Demo(UnboundSave) is not { } unboundBytes) return;
         using var session = _engine.OpenSession(bytes, "Radical Red");
-        var kirlia = session.ExportSlot(0, 0); // Kirlia exists in Gen 3
-        var pk3 = EntityBytes.Parse(kirlia.Data, kirlia.Format);
+        var kirlia = session.ExportSlot(0, 0); // Kirlia exists in Gen 3, its Quick Ball does not
+        Assert.Null(EntityBytes.Parse(kirlia.Data, kirlia.Format));
+        Assert.Contains("Kirlia is in a Quick Ball, which Generation 3 does not have. Only Radical Red can take it.",
+            TransferCompatibility.ExplainRefusal(kirlia.Data, "Kirlia", "Gen3", 3, "Emerald", kirlia.Format));
+        var (convertible, pk3) = session.Snapshot.Slots.Where(s => s.Species is not null)
+            .Select(s => session.ExportSlot(s.Box, s.Slot))
+            .Select(e => (Export: e, Pk3: EntityBytes.Parse(e.Data, e.Format)))
+            .First(c => c.Pk3 is not null);
         Assert.IsType<PKHeX.Core.PK3>(pk3);
-        Assert.Equal(281, pk3.Species);
 
         var terapagos = session.ExportSlot(-1, 0); // Gen 9: no PK3 can hold it
         Assert.Null(EntityBytes.Parse(terapagos.Data, terapagos.Format));
         var refusal = TransferCompatibility.ExplainRefusal(terapagos.Data, "Terapagos", "Gen3", 3, "Emerald", terapagos.Format);
-        Assert.Contains("only Radical Red can take it", refusal);
+        Assert.Equal("Terapagos cannot go to Emerald. Terapagos-Terastal does not exist in Generation 3. Only Radical Red can take it.", refusal);
         Assert.Contains("Radical Red", PksmEntityConversion.Encode(terapagos.Data, terapagos.Format).Reason);
         Assert.Equal("Radical Red", EntityBytes.RomHackGame(terapagos.Format));
         Assert.Null(EntityBytes.RomHackGame("PK3"));
@@ -311,10 +316,10 @@ public sealed class CfruBankRoundTripTests : IDisposable
         // as a mon the game counts (language and hasSpecies set).
         using var unbound = _engine.OpenSession(unboundBytes, "Unbound");
         var free = unbound.Snapshot.Slots.First(s => s.Box >= 0 && s.Species is null);
-        Assert.True(unbound.ImportSlot(free.Box, free.Slot, kirlia.Data, kirlia.Format));
-        Assert.Equal(281, unbound.ReadEntity(free.Box, free.Slot).Species);
+        Assert.True(unbound.ImportSlot(free.Box, free.Slot, convertible.Data, convertible.Format));
+        Assert.Equal(pk3!.Species, unbound.ReadEntity(free.Box, free.Slot).Species);
         var landed = SlotBytes(unbound, new SlotRef(free.Box, free.Slot));
-        Assert.NotEqual(kirlia.Data, landed);
+        Assert.NotEqual(convertible.Data, landed);
         Assert.Equal((2, 2), (landed[0x12], landed[0x13]));
     }
 

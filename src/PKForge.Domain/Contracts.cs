@@ -200,6 +200,12 @@ public interface IBankService
     IReadOnlyList<BankEntry> GetAll();
     int BoxCount { get; }
     BankEntry Add(byte[] data, BankEntryInfo info);
+    /// <summary>
+    /// Deposits a whole batch in one index write, all or nothing: every placement is checked
+    /// before anything is written, and a failure anywhere (bytes or index) leaves the bank
+    /// exactly as it was. Deposits without a slot take the first free ones in order.
+    /// </summary>
+    IReadOnlyList<BankEntry> AddMany(IReadOnlyList<BankDeposit> deposits);
     byte[] GetData(Guid id);
     void Move(Guid id, int box, int slot);
     void Remove(Guid id);
@@ -235,6 +241,10 @@ public interface IBankService
     /// </summary>
     int Place(IReadOnlyList<(Guid Id, int Box, int Slot)> placements);
 }
+
+/// <summary>One Pokémon for <see cref="IBankService.AddMany"/>; <paramref name="Box"/> and
+/// <paramref name="Slot"/> name an empty slot to land in, or are -1 for the first free one.</summary>
+public sealed record BankDeposit(byte[] Data, BankEntryInfo Info, int Box = -1, int Slot = -1);
 
 /// <summary>Descriptive facts captured at deposit time (display without parsing bytes).</summary>
 /// <param name="Format">

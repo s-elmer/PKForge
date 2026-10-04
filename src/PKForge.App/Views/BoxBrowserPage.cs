@@ -1276,8 +1276,8 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
 
     private const string PartyNeedsOne = "THE PARTY NEEDS ONE POKéMON - UNMARK A PARTY MEMBER";
 
-    /// <summary>Sends every marked mon to another linked game; a move releases only the mons
-    /// that actually arrived, so the ones that could not enter that format stay marked.</summary>
+    /// <summary>Sends every marked mon to another linked game, all or none: if one cannot enter
+    /// that format, nothing is written anywhere and the refusal names it.</summary>
     private async Task SendSelectionToGameAsync(bool copy)
     {
         var session = _sessionsFor();
@@ -1314,8 +1314,8 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
 
         var confirm = await PadMenu.ConfirmAsync(_hostGrid, $"{verb} selection?",
             (copy
-                ? $"Copies of {count} Pokémon join {target.GameLabel}; the originals stay here. Mons that cannot enter that format are skipped."
-                : $"{count} Pokémon will leave this save and join {target.GameLabel}. Mons that cannot enter that format stay here.")
+                ? $"Copies of {count} Pokémon join {target.GameLabel}; the originals stay here. If one cannot enter that format, none are copied."
+                : $"{count} Pokémon will leave this save and join {target.GameLabel}. If one cannot enter that format, all stay here.")
             + $" They land in {StartSlotPicker.Describe(targetSlots, startAt, count)}.",
             copy ? "Copy all" : "Move all");
         if (!confirm) return;
@@ -1328,29 +1328,26 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         if (!await Services.TransferPreviewPrompt.ConfirmAsync(_hostGrid, firstPreview,
                 $"1 of {count} Pokémon", target.GameLabel)) return;
 
-        var sentSlots = new List<(int Box, int Slot)>();
-        var skipped = 0;
-        foreach (var (box, markedSlot) in marked)
-        {
-            var export = session.ExportSlot(box, markedSlot);
-            // Each lands in the first free slot from the chosen start: the ones before it are taken by now.
-            var outcome = await transfer.SendToGameAsync(export.Data, export.FileName, target, startAt: startAt);
-            if (outcome.Success) sentSlots.Add((box, markedSlot));
-            else skipped++;
-        }
-        if (sentSlots.Count == 0)
-        {
-            _viewModel.Status = skipped > 0 ? $"No Pokémon could enter {target.GameLabel}'s format." : "Transfer failed.";
-            return;
-        }
-        if (!copy)
-            await _viewModel.BulkReleaseAsync(sentSlots);
-        else
-            _viewModel.ClearMarksQuietly();
-        var done = copy ? "Copied" : "Moved";
-        _viewModel.Status = skipped > 0
-            ? $"{done} {sentSlots.Count} to {target.GameLabel}; {skipped} could not enter that format" + (copy ? "." : " and stayed.")
-            : $"{done} {sentSlots.Count} Pokémon to {target.GameLabel}.";
+        // All or none: the other game takes the whole batch in one write, then a move empties
+        // these slots in one write, and a failed release takes the batch back out of that game.
+        var items = marked.Select(m => session.ExportSlot(m.Box, m.Slot))
+            .Select(export => new PKForge.Engine.TransferItem(export.Data, export.Format, export.FileName)).ToArray();
+        IReadOnlyList<SlotRef> landed = [];
+        var outcome = await PKForge.Engine.BankTransfers.MoveAsync(items.Length, target.GameLabel,
+            async () =>
+            {
+                (var refusal, landed) = await transfer.SendManyToGameAsync(items, target,
+                    $"{items.Length} Pokémon arrived from a transfer", startAt: startAt);
+                return refusal;
+            },
+            copy ? null : async () => await _viewModel.BulkReleaseAsync(marked) ? null : _viewModel.Status,
+            async () =>
+            {
+                await transfer.ReleaseFromGameAsync(target, landed, $"{items.Length} Pokémon sent back: the transfer was undone");
+                return null;
+            });
+        if (outcome.Success && copy) _viewModel.ClearMarksQuietly();
+        _viewModel.Status = outcome.Message;
     }
 
     /// <summary>Clones every marked mon into the first free box slots. One write.</summary>
@@ -1387,8 +1384,9 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         if (ok) _viewModel.ClearMarksQuietly();
     }
 
-    /// <summary>Deposits every marked mon in the Bank: the bytes are captured first, then a
-    /// move empties all the slots in one safe write before the deposits land.</summary>
+    /// <summary>Deposits every marked mon in the Bank, all or none: every one is read first,
+    /// the Bank takes them in one write, and only then does a move empty the slots in one safe
+    /// save write (a failed save write takes the deposits back out of the Bank).</summary>
     private async Task SendSelectionToBankAsync(bool copy)
     {
         var session = _sessionsFor();
@@ -1397,18 +1395,22 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         if (session is null || bank is null || engine is null) return;
         if (!copy && _viewModel.MarksEmptyTheParty()) { _viewModel.Status = PartyNeedsOne; return; }
 
-        var deposits = new List<(byte[] Data, BankEntryInfo Info)>();
-        foreach (var (box, markedSlot) in _viewModel.MarkedSlots)
+        var marked = _viewModel.MarkedSlots.ToArray();
+        var deposits = new List<BankDeposit>(marked.Length);
+        foreach (var (box, markedSlot) in marked)
         {
             var export = session.ExportSlot(box, markedSlot);
-            var info = engine.TryDescribeEntity(export.Data, _viewModel.ConnectedName, export.Format);
-            if (info is not null) deposits.Add((export.Data, info));
+            if (engine.TryDescribeEntity(export.Data, _viewModel.ConnectedName, export.Format) is not { } info)
+            {
+                _viewModel.Status = $"Nothing was sent: {BoxBrowserViewModel.SlotLabel(box, markedSlot)} could not be read for the Bank.";
+                return;
+            }
+            deposits.Add(new BankDeposit(export.Data, info));
         }
-        if (!copy && !await _viewModel.BulkReleaseAsync()) return;
-        foreach (var (data, info) in deposits)
-            bank.Add(data, info);
-        if (copy) _viewModel.ClearMarksQuietly();
-        _viewModel.Status = $"{(copy ? "Copied" : "Deposited")} {deposits.Count} Pokémon {(copy ? "to" : "in")} the Bank.";
+        var outcome = await PKForge.Engine.BankTransfers.DepositAsync(bank, deposits,
+            copy ? null : async () => await _viewModel.BulkReleaseAsync(marked) ? null : _viewModel.Status);
+        if (outcome.Success && copy) _viewModel.ClearMarksQuietly();
+        _viewModel.Status = outcome.Message;
     }
 
     private async Task ReleaseSelectionAsync()
@@ -4274,17 +4276,17 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             return;
         }
 
-        var ok = await _viewModel.RunMutationAsync(s =>
-        {
-            s.ReleaseSlot(_viewModel.BoxIndex, slot);
-            return new GenerationOutcome(true, $"{nickname} deposited in the Bank.");
-        }, slot, changeDescription: $"Deposit {nickname} in the Bank ({(_viewModel.BoxIndex == -1 ? $"Party {slot + 1}" : $"Box {_viewModel.BoxIndex + 1}, Slot {slot + 1}")})",
-            action: SaveAction.Move);
-        if (ok)
-        {
-            bank.Add(export.Data, info);
-            _canvas.InvalidateSurface();
-        }
+        // The Bank holds the copy before the slot empties; a failed save write takes it back out.
+        var box = _viewModel.BoxIndex;
+        var outcome = await PKForge.Engine.BankTransfers.DepositAsync(bank, [new BankDeposit(export.Data, info)],
+            async () => await _viewModel.RunMutationAsync(s =>
+            {
+                s.ReleaseSlot(box, slot);
+                return new GenerationOutcome(true, $"{nickname} deposited in the Bank.");
+            }, slot, changeDescription: $"Deposit {nickname} in the Bank ({BoxBrowserViewModel.SlotLabel(box, slot)})",
+                action: SaveAction.Move) ? null : _viewModel.Status);
+        if (outcome.Success) _canvas.InvalidateSurface();
+        else _viewModel.Status = outcome.Message;
     }
 
     /// <summary>Release with confirmation; the pre-release state stays recoverable as a restore point.</summary>

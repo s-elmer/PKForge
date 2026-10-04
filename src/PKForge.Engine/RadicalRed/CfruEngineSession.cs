@@ -591,13 +591,14 @@ internal class CfruEngineSession : ISaveEngineSession
             entity = converted;
         }
         var pk3 = (PK3)entity;
+        if (Landing(pk3, Game, _profile.GameName, out _) is not { } ids) return false;
 
         if (box == -1)
         {
             if (PartyCount >= 6) return false;
             var party = PartyMon(PartyCount);
             _data.AsSpan(party.Offset, PartyMonSize).Clear();
-            FromPk3(pk3, party);
+            FromPk3(pk3, ids, party);
             BinaryPrimitives.WriteUInt32LittleEndian(_data.AsSpan(PartyBase + PartyCountOffset), (uint)(PartyCount + 1));
             CommitSection(PartySection);
             return true;
@@ -607,32 +608,34 @@ internal class CfruEngineSession : ISaveEngineSession
         if (location is null) return false;
         var target = PcMon(location.Value);
         target.Buffer.AsSpan(target.Offset, PcMonSize).Clear();
-        FromPk3(pk3, target);
+        FromPk3(pk3, ids, target);
         CommitPc(location);
         return true;
     }
 
-    private void FromPk3(PK3 pk3, RadicalRedMon target)
+    /// <summary>The hack ids <paramref name="pk3"/> lands with in this game, or null with the
+    /// reason one of its national ids has no counterpart in <paramref name="game"/>'s tables.</summary>
+    internal static CfruPk3.Inbound? Landing(PK3 pk3, ICfruGameData game, string gameName, out string? refusal) =>
+        CfruPk3.FromPk3(pk3, gameName, game.SpeciesFromNational, game.MoveFromNational, game.ItemFromNational,
+            game.AbilityIds, ball => RadicalRedMon.TryStoreBall(ball, out var stored) ? stored : -1, out refusal);
+
+    private void FromPk3(PK3 pk3, CfruPk3.Inbound ids, RadicalRedMon target)
     {
-        // A real .pk3 carries national ids; the hack's are the CFRU engine's own,
-        // so the species crosses by name and falls back to the raw id for hacks of
-        // hacks that store internal ids directly.
-        var species = ResolveImportSpecies(pk3.Species);
-        target.Species = species;
+        target.Species = ids.Species;
         target.Pid = pk3.PID;
         target.Otid = pk3.ID32;
-        target.Nickname = pk3.Nickname.Length > 0 ? pk3.Nickname : Game.SpeciesName(species);
+        target.Nickname = pk3.Nickname.Length > 0 ? pk3.Nickname : Game.SpeciesName(ids.Species);
         target.Language = Math.Clamp(pk3.Language, 1, 5);
         target.SanityFlags = 2; // hasSpecies
-        target.HeldItem = pk3.HeldItem;
+        target.HeldItem = ids.HeldItem;
         target.Experience = Math.Max(pk3.EXP, 1u);
-        target.Moves = [pk3.Move1, pk3.Move2, pk3.Move3, pk3.Move4];
+        target.Moves = ids.Moves;
         Span<int> ivs = stackalloc int[6]; // PKHeX order: HP, Atk, Def, Spe, SpA, SpD
         pk3.GetIVs(ivs);
         target.IVs = [ivs[0], ivs[1], ivs[2], ivs[4], ivs[5], ivs[3]]; // -> app order HP, Atk, Def, SpA, SpD, Spe
         target.EVs = [pk3.EV_HP, pk3.EV_ATK, pk3.EV_DEF, pk3.EV_SPA, pk3.EV_SPD, pk3.EV_SPE];
-        target.Ball = 3; // Gen 3 mons store no ball
-        target.HiddenAbility = false;
+        target.Ball = ids.Ball;
+        target.HiddenAbility = ids.HiddenAbility;
         target.IsEgg = pk3.IsEgg;
         target.Friendship = 70;
         target.MetLocation = pk3.MetLocation;
@@ -642,13 +645,6 @@ internal class CfruEngineSession : ISaveEngineSession
         {
             target.Buffer[target.Offset + 0x54] = (byte)target.Level;
         }
-    }
-
-    private int ResolveImportSpecies(int stored)
-    {
-        var species = GameInfo.GetStrings("en").specieslist;
-        var byName = stored > 0 && stored < species.Length ? Game.SpeciesIdByName(species[stored]) : 0;
-        return byName > 0 ? byName : Math.Min(stored, Game.MaxSpeciesId);
     }
 
     /// <summary>Lands this game's own export (<see cref="CfruEntity"/>) as it is: a box
@@ -696,29 +692,28 @@ internal class CfruEngineSession : ISaveEngineSession
     }
 
     /// <summary>
-    /// The PK3 another game imports. It keeps the hack's internal species id (clamped to
-    /// the table) and its move and item ids, and none of the CFRU-only fields: only the
-    /// export's own game reads the exact record.
+    /// The PK3 another game imports: every id bridged to its national twin through the hack's
+    /// tables, none of the CFRU-only fields (only the export's own game reads the exact
+    /// record). Null with the reason when an id has no Generation 3 counterpart.
     /// </summary>
-    internal static PK3 ToPk3(RadicalRedMon mon)
+    internal static PK3? ToPk3(RadicalRedMon mon, out string? refusal)
     {
-        var pk3 = new PK3
-        {
-            Species = (ushort)Math.Min(mon.Species, mon.Data.MaxSpeciesId),
-            PID = mon.Pid,
-            ID32 = mon.Otid,
-            Nickname = mon.Nickname,
-            IsNicknamed = true,
-            HeldItem = (ushort)mon.HeldItem,
-            EXP = mon.Experience,
-            Move1 = (ushort)mon.Moves[0],
-            Move2 = (ushort)mon.Moves[1],
-            Move3 = (ushort)mon.Moves[2],
-            Move4 = (ushort)mon.Moves[3],
-            OriginalTrainerName = mon.OriginalTrainerName,
-            Language = (int)LanguageID.English,
-            Version = GameVersion.FR,
-        };
+        var data = mon.Data;
+        var national = data.NationalIdOf(mon.Species);
+        var moves = mon.Moves;
+        var pk3 = CfruPk3.ToPk3(new CfruPk3.Outbound(
+            data.SpeciesName(mon.Species), national, data.SpeciesFromNational(national) == mon.Species, mon.Pid,
+            [.. moves.Select(move => (move, data.MoveToNational(move), data.MoveName(move)))],
+            mon.HeldItem, data.ItemToNational(mon.HeldItem), data.ItemName(mon.HeldItem),
+            mon.HiddenAbility, data.ActiveAbility(mon), mon.DisplayBall), out refusal);
+        if (pk3 is null) return null;
+        pk3.ID32 = mon.Otid;
+        pk3.Nickname = mon.Nickname;
+        pk3.IsNicknamed = true;
+        pk3.EXP = mon.Experience;
+        pk3.OriginalTrainerName = mon.OriginalTrainerName;
+        pk3.Language = (int)LanguageID.English;
+        pk3.Version = GameVersion.FR;
         var ivs = mon.IVs;
         pk3.SetIVs([ivs[0], ivs[1], ivs[2], ivs[5], ivs[3], ivs[4]]); // storage -> PKHeX order
         pk3.SetEVs([mon.EVs[0], mon.EVs[1], mon.EVs[2], mon.EVs[5], mon.EVs[4], mon.EVs[3]]);
