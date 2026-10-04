@@ -71,7 +71,7 @@ public static class AboutPopup
                 Small("Pokémon save manager and bank"),
                 Row("Version", diagnostic ? $"v{version} · diagnostic" : $"v{version}"),
                 Row("Developed by", "@22sh"),
-                Row("Logo by", "@spritedmistery"),
+                Row("Design by", "@spritedmistery"),
                 Small("Engine PKHeX · chrome PKSM (GPL-3)"),
                 Small("Sprites © Nintendo · Creatures · Game Freak"),
                 Small("github.com/sofianeelhor/pkforge", UiTokens.MenuBlue),

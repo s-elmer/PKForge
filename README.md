@@ -207,8 +207,8 @@ docs/                       architecture, bank model, development, art direction
 
 - [PKHeX](https://github.com/kwsch/PKHeX) by Kaphotics and every contributor over the
   years, the engine everything runs on
-- [spritedmistery](https://www.instagram.com/spritedmistery/), the PKForge logo and several
-  of the app's assets
+- [spritedmistery](https://www.instagram.com/spritedmistery/), the PKForge logo, the app's
+  look, its color schemes and logos, and its buttons
 - [PKHeX-Plugins / Auto Legality Mod](https://github.com/santacrab2/PKHeX-Plugins), the
   offline legalizer built into the app
 - [PKSM](https://github.com/FlagBrew/PKSM), the pixel chrome this UI builds on (GPL-3,
