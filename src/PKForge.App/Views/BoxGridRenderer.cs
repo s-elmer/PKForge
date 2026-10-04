@@ -193,7 +193,7 @@ public static class BoxGridRenderer
             if (selected) StoragePaint.CursorPool(canvas, cell, unit, marking ? Pksm.CursorGreen : null);
             var lift = selected ? StoragePaint.CursorLift * unit : 0f;
 
-            var settling = hand is not null && hand.IsLandingOn(index);
+            var settling = hand is not null && hand.IsLandingOn(index, scene.Box);
             if (occupied && !settling)
             {
                 if (isCarryOrigin)

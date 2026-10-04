@@ -84,8 +84,13 @@ public sealed class CarryHand
     /// <summary>True while the hand is drawn: holding, or still settling a dropped Pokémon.</summary>
     public bool Visible => _holding || _landingSlot >= 0;
 
-    /// <summary>True while a dropped Pokémon is still settling onto <paramref name="slot"/>: that slot skips its own sprite meanwhile.</summary>
-    public bool IsLandingOn(int slot) => !_holding && _landingSlot >= 0 && slot == _landingSlot;
+    /// <summary>
+    /// True while a dropped Pokémon is still settling onto <paramref name="slot"/> of
+    /// <paramref name="box"/>: that slot skips its own sprite meanwhile. The box counts: the
+    /// grid asks before <see cref="Sync"/> has seen a turn to another box, and the same slot
+    /// there must still draw its Pokémon.
+    /// </summary>
+    public bool IsLandingOn(int slot, int box) => !_holding && _landingSlot >= 0 && slot == _landingSlot && box == _landingBox;
 
     /// <summary>
     /// Advances and draws the hand over the slot grid. Returns true while another frame is
