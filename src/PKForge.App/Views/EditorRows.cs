@@ -12,10 +12,10 @@ namespace PKForge.App.Views;
 /// </summary>
 internal static class EditorRows
 {
-    internal static readonly Color EditorLabel = EditorPaint.Label.ToMauiColor();
-    internal static readonly Color EditorValue = EditorPaint.Value.ToMauiColor();
-    internal static readonly Color ToolFill = new SKColor(0x25, 0x53, 0x9A).ToMauiColor();
-    internal static readonly Color ToolEdge = new SKColor(0x4C, 0x7C, 0xC4).ToMauiColor();
+    internal static Color EditorLabel => UiTokens.EditorLabel;
+    internal static Color EditorValue => UiTokens.EditorValue;
+    internal static Color ToolFill => UiTokens.ToolFill;
+    internal static Color ToolEdge => UiTokens.ToolEdge;
 
     /// <summary>
     /// A length in mockup pixels (the 1920×1080 design) as device-independent units on this
@@ -113,11 +113,11 @@ internal static class EditorRows
     }
 
     /// <summary>The focused row or button: the section chip's gradient.</summary>
-    internal static readonly LinearGradientBrush EditorFocusBrush = new(
+    internal static LinearGradientBrush EditorFocusBrush => new(
         [new GradientStop(EditorPaint.ChipTop.ToMauiColor(), 0), new GradientStop(EditorPaint.ChipBottom.ToMauiColor(), 1)],
         new Point(0, 0), new Point(0, 1));
 
-    internal static readonly Color FocusedCaption = EditorPaint.ChipInk.ToMauiColor();
+    internal static Color FocusedCaption => UiTokens.EditorChipInk;
 
     /// <summary>Turns a row's captions pale while it is focused (they are the label blue at rest).</summary>
     internal static void SetFocusedCaptions(Border row, bool focused)

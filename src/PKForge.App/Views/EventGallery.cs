@@ -305,8 +305,8 @@ public static class EventGallery
     private static SKFont Font(float size) => new(PixelFont.Face, size) { Edging = SKFontEdging.Antialias };
 
     /// <summary>The card-album world's card colours: plum wonder-card paper over the navy chrome.</summary>
-    private static readonly SKColor CardTop = PksmPaint.Mix(Pksm.GiftPinkLight, Pksm.Paper, 0.45f);
-    private static readonly SKColor CardBottom = PksmPaint.Mix(Pksm.GiftPink, Pksm.PaperShade, 0.35f);
+    private static SKColor CardTop => PksmPaint.Mix(Pksm.GiftPinkLight, Pksm.Paper, 0.45f);
+    private static SKColor CardBottom => PksmPaint.Mix(Pksm.GiftPink, Pksm.PaperShade, 0.35f);
     private static readonly SKColor CardRim = PksmPaint.Lighter(Pksm.GiftPinkLight, 0.12f);
     private static readonly SKColor GroupInk = PksmPaint.Lighter(Pksm.GiftRed, 0.25f);
 

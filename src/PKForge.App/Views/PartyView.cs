@@ -25,24 +25,24 @@ public static class PartyView
     private static SKFont? _smallFont;
     private static SKFont? _labelFont;
 
-    private static readonly SKColor GridTop = new(0x06, 0x0C, 0x1C);
-    private static readonly SKColor GridLine = StoragePaint.FrameEdge.WithAlpha(0x78);
-    private static readonly SKColor GridNode = StoragePaint.FrameEdge.WithAlpha(0xC8);
-    private static readonly SKColor Rim = new(0x6C, 0xDE, 0xF6);
-    private static readonly SKColor RimDark = new(0x0C, 0x1A, 0x34);
-    private static readonly SKColor Trace = Rim.WithAlpha(0x8C);
-    private static readonly SKColor Body = new(0x2A, 0x4C, 0x7E);
-    private static readonly SKColor BodyBand = new(0x36, 0x5E, 0x96);
-    private static readonly SKColor SelectedBody = new(0x2E, 0x6C, 0xB8);
-    private static readonly SKColor SelectedBand = new(0x3C, 0x82, 0xCC);
+    private static SKColor GridTop => ColorTheme.Current.PartyGridTop;
+    private static SKColor GridLine => StoragePaint.FrameEdge.WithAlpha(0x78);
+    private static SKColor GridNode => StoragePaint.FrameEdge.WithAlpha(0xC8);
+    private static SKColor Rim => ColorTheme.Current.PartyRim;
+    private static SKColor RimDark => ColorTheme.Current.PartyRimDark;
+    private static SKColor Trace => Rim.WithAlpha(0x8C);
+    private static SKColor Body => ColorTheme.Current.PartyBody;
+    private static SKColor BodyBand => ColorTheme.Current.PartyBand;
+    private static SKColor SelectedBody => ColorTheme.Current.PartySelected;
+    private static SKColor SelectedBand => ColorTheme.Current.PartySelectedBand;
     private static readonly SKColor FaintBody = new(0x5A, 0x2A, 0x2E);
     private static readonly SKColor FaintBand = new(0x6A, 0x36, 0x38);
-    private static readonly SKColor EmptyBody = RimDark.WithAlpha(0xB0);
-    private static readonly SKColor EmptyRim = StoragePaint.FrameEdge;
+    private static SKColor EmptyBody => RimDark.WithAlpha(0xB0);
+    private static SKColor EmptyRim => StoragePaint.FrameEdge;
     private static readonly SKColor HpLabel = new(0x6C, 0xE8, 0x5C);
     private static readonly SKColor Track = new(0x30, 0x34, 0x40);
-    private static readonly SKColor TextShadow = new(0x08, 0x10, 0x24);
-    private static readonly SKColor Ghost = Rim.WithAlpha(0x70);
+    private static SKColor TextShadow => ColorTheme.Current.PartyShadow;
+    private static SKColor Ghost => Rim.WithAlpha(0x70);
 
     public static void Paint(SKCanvas canvas, SKImageInfo info, ISpriteService sprites, ISaveEngineSession? session, int selectedSlot, Action invalidate, (int Box, int Slot)? carrySource = null, float pulsePhase = 0f,
         Func<int, bool>? isMarked = null, Func<int, bool?>? rangeMark = null)

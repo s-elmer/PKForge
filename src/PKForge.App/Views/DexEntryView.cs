@@ -16,12 +16,12 @@ namespace PKForge.App.Views;
 public sealed class DexEntryView : SKCanvasView
 {
     private const float DesignWidth = 1240, DesignHeight = 1080, LeftWidth = 648;
-    private static readonly SKColor PanelFill = new(0x04, 0x24, 0x4E);
-    private static readonly SKColor LabelColumn = new(0x06, 0x19, 0x39);
-    private static readonly SKColor LabelInk = new(0x28, 0x46, 0x82);
-    private static readonly SKColor ValueInk = new(0x96, 0xA8, 0xD2);
-    private static readonly SKColor SubInk = new(0x60, 0x7E, 0xBA);
-    private static readonly SKColor Cyan = new(0x16, 0xB6, 0xDC);
+    private static SKColor PanelFill => ColorTheme.Current.PanelFill;
+    private static SKColor LabelColumn => ColorTheme.Current.LabelColumn;
+    private static SKColor LabelInk => ColorTheme.Current.LabelInk;
+    private static SKColor ValueInk => ColorTheme.Current.ValueInk;
+    private static SKColor SubInk => ColorTheme.Current.SubInk;
+    private static SKColor Cyan => ColorTheme.Current.Rim;
 
     private readonly ISpriteService _sprites;
     private int _species;
@@ -70,7 +70,7 @@ public sealed class DexEntryView : SKCanvasView
     private void PaintLeft(SKCanvas c, float height)
     {
         // The name banner, run off the left edge like the summary's.
-        using (var frame = new SKPaint { Color = new SKColor(0x1D, 0x22, 0x44), IsAntialias = true })
+        using (var frame = new SKPaint { Color = ColorTheme.Current.NameFrame, IsAntialias = true })
             c.DrawRoundRect(new SKRect(-40, 10, 600, 104), 26, 26, frame);
         using (var banner = new SKPath())
         {
@@ -112,8 +112,8 @@ public sealed class DexEntryView : SKCanvasView
         }
 
         var card = new SKRect(24, cardTop, 590, cardTop + 430);
-        using (var fill = new SKPaint { Color = new SKColor(0x0C, 0x14, 0x2C), IsAntialias = true }) c.DrawRoundRect(card, 28, 28, fill);
-        using (var rim = new SKPaint { Color = new SKColor(0x28, 0x46, 0x82), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 3 })
+        using (var fill = new SKPaint { Color = ColorTheme.Current.CardFill, IsAntialias = true }) c.DrawRoundRect(card, 28, 28, fill);
+        using (var rim = new SKPaint { Color = ColorTheme.Current.LabelInk, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 3 })
             c.DrawRoundRect(SKRect.Inflate(card, -1.5f, -1.5f), 28, 28, rim);
         using (var tab = new SKPath())
         {
@@ -125,12 +125,12 @@ public sealed class DexEntryView : SKCanvasView
             tab.LineTo(24, cardTop + 24);
             tab.ArcTo(new SKRect(24, cardTop, 72, cardTop + 48), 180, 90, false);
             tab.Close();
-            using var fill = new SKPaint { Color = new SKColor(0x10, 0x89, 0xB6), IsAntialias = true };
+            using var fill = new SKPaint { Color = ColorTheme.Current.SpeciesFill, IsAntialias = true };
             c.DrawPath(tab, fill);
-            using var rim = new SKPaint { Color = new SKColor(0x5A, 0xD2, 0xF0), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 3 };
+            using var rim = new SKPaint { Color = ColorTheme.Current.SpeciesEdge, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 3 };
             c.DrawPath(tab, rim);
         }
-        SummaryInk.Draw(c, $"No. {_species:000}", 52, SummaryInk.Center(cardTop + 39, 42), 42, new SKColor(0xC8, 0xF0, 0xFF));
+        SummaryInk.Draw(c, $"No. {_species:000}", 52, SummaryInk.Center(cardTop + 39, 42), 42, ColorTheme.Current.SpeciesInk);
         var types = _types.Where(TypeFacts.IsValid).ToList();
         var x = 307 - (types.Count * 184 + Math.Max(0, types.Count - 1) * 20) / 2f;
         foreach (var type in types)
@@ -140,7 +140,7 @@ public sealed class DexEntryView : SKCanvasView
         }
         if (DexRegions.Of(_species) is { } region)
         {
-            using var band = new SKPaint { Color = new SKColor(0x19, 0x24, 0x47) };
+            using var band = new SKPaint { Color = ColorTheme.Current.CardRow };
             c.DrawRect(new SKRect(27, cardTop + 194, 587, cardTop + 286), band);
             SummaryInk.Draw(c, "Region", 60, SummaryInk.Center(cardTop + 240, 40), 40, LabelInk);
             SummaryInk.Draw(c, $"{region.Name} · Gen {region.Roman}", 560, SummaryInk.Center(cardTop + 240, 40), 40, ValueInk, align: SKTextAlign.Right);

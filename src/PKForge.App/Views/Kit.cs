@@ -69,9 +69,9 @@ public static class Kit
 
     /// <summary>Navy body with the faint light along the top edge (the summary panel).</summary>
     // The storage well's navy, a touch lighter at the top.
-    private static readonly Color WellTop = PksmPaint.Mix(StoragePaint.Well, StoragePaint.FrameEdge, 0.25f).ToMauiColor();
-    private static readonly Color WellBody = StoragePaint.Well.ToMauiColor();
-    private static readonly Color WellRim = StoragePaint.FrameEdge.ToMauiColor();
+    private static Color WellTop => PksmPaint.Mix(StoragePaint.Well, StoragePaint.FrameEdge, 0.25f).ToMauiColor();
+    private static Color WellBody => StoragePaint.Well.ToMauiColor();
+    private static Color WellRim => StoragePaint.FrameEdge.ToMauiColor();
 
     private static Brush PanelBrush() => new LinearGradientBrush(
         [new GradientStop(WellTop, 0f), new GradientStop(WellBody, 0.12f)],

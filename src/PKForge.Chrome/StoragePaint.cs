@@ -11,13 +11,15 @@ namespace PKForge.Chrome;
 /// </summary>
 public static class StoragePaint
 {
-    public static readonly SKColor Well = new(0x04, 0x1F, 0x46);
-    public static readonly SKColor WellEdge = new(0x08, 0x37, 0x6E);
-    public static readonly SKColor Frame = new(0x1B, 0x23, 0x46);
-    public static readonly SKColor FrameEdge = new(0x23, 0x56, 0x9F);
-    public static readonly SKColor BannerTop = new(0x73, 0x8A, 0xB8);
-    public static readonly SKColor BannerBottom = new(0x25, 0x53, 0x96);
-    public static readonly SKColor PoolLight = new(0x78, 0xC8, 0xFF);
+    private static ColorTheme T => ColorTheme.Current;
+
+    public static SKColor Well => T.Well;
+    public static SKColor WellEdge => T.WellEdge;
+    public static SKColor Frame => T.Frame;
+    public static SKColor FrameEdge => T.FrameEdge;
+    public static SKColor BannerTop => T.BannerTop;
+    public static SKColor BannerBottom => T.BannerBottom;
+    public static SKColor PoolLight => T.PoolLight;
 
     /// <summary>A mockup cell: 160×134 design pixels.</summary>
     public const float DesignCellWidth = 160f;
@@ -121,37 +123,38 @@ public static class StoragePaint
         c.DrawRoundRect(SKRect.Inflate(well, -edge / 2, -edge / 2), 28f * unit, 28f * unit, stroke);
     }
 
-    private static readonly SKColor[] BlueStops = [Well, new(0x0E, 0x33, 0x68), new(0x1E, 0x58, 0x92)];
-    private static readonly ConditionalWeakTable<SKImage, SKColorFilter> BlueMaps = new();
+    private static SKColor[] BlueStops => [Well, ColorTheme.Current.WallpaperMid, ColorTheme.Current.WallpaperLight];
+
+    /// <summary>A wallpaper's grey range (measured once) and its gradient map for one theme.</summary>
+    private sealed class BlueMapEntry
+    {
+        public float Low, High;
+        public int Version = -1;
+        public SKColorFilter? Filter;
+    }
+
+    private static readonly ConditionalWeakTable<SKImage, BlueMapEntry> BlueMaps = new();
 
     /// <summary>
     /// A gradient map for one wallpaper: its grey levels, stretched over the art's own range
     /// (the wallpapers are pale and low in contrast), mapped onto <see cref="BlueStops"/>.
-    /// Built once per image.
+    /// The range is measured once per image; the map is rebuilt when the theme changes.
     /// </summary>
-    private static SKColorFilter BlueMap(SKImage art) => BlueMaps.GetValue(art, image =>
+    private static SKColorFilter BlueMap(SKImage art)
     {
-        using var bitmap = SKBitmap.FromImage(image);
-        var levels = new List<int>();
-        for (var y = 0; y < bitmap.Height; y += 2)
-            for (var x = 0; x < bitmap.Width; x += 2)
-            {
-                var p = bitmap.GetPixel(x, y);
-                levels.Add((p.Red * 299 + p.Green * 587 + p.Blue * 114) / 1000);
-            }
-        levels.Sort();
-        // The 5th and 95th percentiles, so a few stray pixels do not flatten the stretch.
-        float low = levels.Count == 0 ? 0 : levels[levels.Count / 20];
-        float high = levels.Count == 0 ? 255 : Math.Max(low + 1, levels[levels.Count * 19 / 20]);
+        var entry = BlueMaps.GetValue(art, Measure);
+        if (entry.Version == ColorTheme.Version && entry.Filter is { } cached) return cached;
+
+        var stops = BlueStops;
         var alpha = new byte[256];
         var red = new byte[256];
         var green = new byte[256];
         var blue = new byte[256];
         for (var i = 0; i < 256; i++)
         {
-            var t = Math.Clamp((i - low) / (high - low), 0, 1) * (BlueStops.Length - 1);
-            var k = Math.Min((int)t, BlueStops.Length - 2);
-            var color = PksmPaint.Mix(BlueStops[k], BlueStops[k + 1], t - k);
+            var t = Math.Clamp((i - entry.Low) / (entry.High - entry.Low), 0, 1) * (stops.Length - 1);
+            var k = Math.Min((int)t, stops.Length - 2);
+            var color = PksmPaint.Mix(stops[k], stops[k + 1], t - k);
             alpha[i] = (byte)i;
             red[i] = color.Red;
             green[i] = color.Green;
@@ -164,8 +167,28 @@ public static class StoragePaint
             0.299f, 0.587f, 0.114f, 0, 0,
             0, 0, 0, 1, 0,
         ];
-        return SKColorFilter.CreateCompose(SKColorFilter.CreateTable(alpha, red, green, blue), SKColorFilter.CreateColorMatrix(grey));
-    });
+        entry.Filter?.Dispose();
+        entry.Filter = SKColorFilter.CreateCompose(SKColorFilter.CreateTable(alpha, red, green, blue), SKColorFilter.CreateColorMatrix(grey));
+        entry.Version = ColorTheme.Version;
+        return entry.Filter;
+
+        static BlueMapEntry Measure(SKImage image)
+        {
+            using var bitmap = SKBitmap.FromImage(image);
+            var levels = new List<int>();
+            for (var y = 0; y < bitmap.Height; y += 2)
+                for (var x = 0; x < bitmap.Width; x += 2)
+                {
+                    var p = bitmap.GetPixel(x, y);
+                    levels.Add((p.Red * 299 + p.Green * 587 + p.Blue * 114) / 1000);
+                }
+            levels.Sort();
+            // The 5th and 95th percentiles, so a few stray pixels do not flatten the stretch.
+            var low = levels.Count == 0 ? 0f : levels[levels.Count / 20];
+            var high = levels.Count == 0 ? 255f : Math.Max(low + 1, levels[levels.Count * 19 / 20]);
+            return new BlueMapEntry { Low = low, High = high };
+        }
+    }
 
     /// <summary>The average colour of an image, sampled on a coarse grid.</summary>
     public static SKColor AverageColor(SKBitmap bitmap)
@@ -273,8 +296,8 @@ public static class StoragePaint
         "00000100000",
     ];
 
-    private static readonly SKColor PointerRim = new(0x08, 0x14, 0x34);
-    private static readonly SKColor PointerPale = new(0xC8, 0xEC, 0xFF);
+    private static SKColor PointerRim => T.PointerRim;
+    private static SKColor PointerPale => T.PointerPale;
     private static readonly SKColor PointerPaleGreen = new(0xCC, 0xF5, 0xDC);
 
     /// <summary>

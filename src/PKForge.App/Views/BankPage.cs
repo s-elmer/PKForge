@@ -1817,7 +1817,7 @@ public sealed class BankPage : ContentPage, IPadPagingHandler
         if (dexLines.Count > 0)
         {
             var card = new SKRect(24, dexTop, width - 24, height - 24);
-            using (var fill = new SKPaint { Color = new SKColor(0x0A, 0x16, 0x34, 235), IsAntialias = true }) canvas.DrawRoundRect(card, 18, 18, fill);
+            using (var fill = new SKPaint { Color = ColorTheme.Current.DexCard.WithAlpha(235), IsAntialias = true }) canvas.DrawRoundRect(card, 18, 18, fill);
             using (var rim = new SKPaint { Color = (accent is { } a ? PksmPaint.Mix(a, SKColors.White, 0.2f) : EditorPaint.Cyan).WithAlpha(170), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 3 })
                 canvas.DrawRoundRect(SKRect.Inflate(card, -1.5f, -1.5f), 18, 18, rim);
             PaintDexEntry(canvas, SKRect.Inflate(card, -26, -20), dexLines, version, dexText);

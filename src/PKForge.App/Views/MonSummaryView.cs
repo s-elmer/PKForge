@@ -39,22 +39,22 @@ public sealed class MonSummaryView : ContentView
     private static readonly int[] RadarOrder = [0, 1, 2, 5, 4, 3];
     private static readonly string[] TabIcons = ["tab_info", "tab_stats", "tab_moves", "tab_origin", "tab_legality"];
 
-    private static readonly SKColor PanelFill = new(0x04, 0x24, 0x4E);
-    private static readonly SKColor LabelColumn = new(0x06, 0x19, 0x39);
-    private static readonly SKColor LabelInk = new(0x28, 0x46, 0x82);
-    private static readonly SKColor ValueInk = new(0x96, 0xA8, 0xD2);
-    private static readonly SKColor SubInk = new(0x60, 0x7E, 0xBA);
-    private static readonly SKColor Cyan = new(0x16, 0xB6, 0xDC);
+    private static SKColor PanelFill => ColorTheme.Current.PanelFill;
+    private static SKColor LabelColumn => ColorTheme.Current.LabelColumn;
+    private static SKColor LabelInk => ColorTheme.Current.LabelInk;
+    private static SKColor ValueInk => ColorTheme.Current.ValueInk;
+    private static SKColor SubInk => ColorTheme.Current.SubInk;
+    private static SKColor Cyan => ColorTheme.Current.Rim;
     private static readonly SKColor Orange = new(0xFF, 0x9A, 0x5A);
     private static readonly SKColor Gold = new(0xE2, 0xB6, 0x4A);
-    private static readonly SKColor ReasonInk = new(0xAA, 0x96, 0xA0);
-    private static readonly SKColor CardFill = new(0x0C, 0x14, 0x2C);
-    private static readonly SKColor CardRow = new(0x19, 0x24, 0x47);
-    private static readonly SKColor CardEdge = new(0x28, 0x46, 0x82);
-    private static readonly SKColor SpeciesFill = new(0x10, 0x89, 0xB6);
-    private static readonly SKColor SpeciesEdge = new(0x5A, 0xD2, 0xF0);
-    private static readonly SKColor SpeciesInk = new(0xC8, 0xF0, 0xFF);
-    private static readonly SKColor NameFrame = new(0x1D, 0x22, 0x44);
+    private static readonly SKColor ReasonInk = new(0xAA, 0x96, 0xA0); // legality reasons: muted rose, a signal
+    private static SKColor CardFill => ColorTheme.Current.CardFill;
+    private static SKColor CardRow => ColorTheme.Current.CardRow;
+    private static SKColor CardEdge => ColorTheme.Current.LabelInk;
+    private static SKColor SpeciesFill => ColorTheme.Current.SpeciesFill;
+    private static SKColor SpeciesEdge => ColorTheme.Current.SpeciesEdge;
+    private static SKColor SpeciesInk => ColorTheme.Current.SpeciesInk;
+    private static SKColor NameFrame => ColorTheme.Current.NameFrame;
     private static readonly SKColor Raised = new(0xFA, 0x8C, 0x96);
     private static readonly SKColor Lowered = new(0x82, 0xB4, 0xFA);
 
@@ -339,7 +339,7 @@ public sealed class MonSummaryView : ContentView
         var right = TabLeft + TabStep * 4 + TabWidth;
         using (var strip = Parallelogram(new SKRect(TabLeft, TabTop, right, bottom), TabSlant))
         {
-            Fill(c, strip, new SKColor(0x1E, 0x48, 0x86), new SKColor(0x10, 0x30, 0x64));
+            Fill(c, strip, ColorTheme.Current.TabTop, ColorTheme.Current.TabBottom);
             Outline(c, strip, Cyan, 4);
         }
         using var edge = new SKPaint { Color = Cyan, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 4 };
@@ -352,11 +352,11 @@ public sealed class MonSummaryView : ContentView
         var ax = TabLeft + active * TabStep;
         using (var tab = Parallelogram(new SKRect(ax - 6, TabTop - 6, ax + TabWidth + 2, bottom + 2), TabSlant))
         {
-            Fill(c, tab, new SKColor(0x7E, 0x9C, 0xD6), new SKColor(0x2C, 0x5A, 0xA6));
+            Fill(c, tab, ColorTheme.Current.TabActiveTop, ColorTheme.Current.TabActiveBottom);
             Outline(c, tab, Pksm.Ink, 4);
         }
         var sampling = new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None);
-        using var tint = new SKPaint { ColorFilter = SKColorFilter.CreateBlendMode(new SKColor(0xF0, 0xF6, 0xFF), SKBlendMode.SrcIn) };
+        using var tint = new SKPaint { ColorFilter = SKColorFilter.CreateBlendMode(ColorTheme.Current.TabIcon, SKBlendMode.SrcIn) };
         for (var i = 0; i < 5; i++)
         {
             if (Icon(TabIcons[i]) is not { } icon) continue;
@@ -481,9 +481,9 @@ public sealed class MonSummaryView : ContentView
         }
 
         using (var back = Polygon(_ => radius + 20))
-        using (var paint = new SKPaint { Color = new SKColor(0x04, 0x1F, 0x46, 215), IsAntialias = true })
+        using (var paint = new SKPaint { Color = StoragePaint.Well.WithAlpha(215), IsAntialias = true })
             c.DrawPath(back, paint);
-        using (var ring = new SKPaint { Color = new SKColor(0x23, 0x60, 0xB0), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 3 })
+        using (var ring = new SKPaint { Color = EditorPaint.Label, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 3 })
         {
             foreach (var fraction in new[] { 0.25f, 0.5f, 0.75f, 1f })
             {
@@ -495,15 +495,15 @@ public sealed class MonSummaryView : ContentView
             for (var i = 0; i < 6; i++) c.DrawLine(new SKPoint(cx, cy), Point(i, radius), ring);
         }
         using (var basePath = Polygon(i => radius * Math.Min(1f, (RadarOrder[i] < s.BaseStats.Count ? s.BaseStats[RadarOrder[i]] : 0) / 180f)))
-        using (var baseFill = new SKPaint { Color = new SKColor(0x78, 0x96, 0xD2, 50), IsAntialias = true })
+        using (var baseFill = new SKPaint { Color = ColorTheme.Current.RadarFill.WithAlpha(50), IsAntialias = true })
             c.DrawPath(basePath, baseFill);
         using (var shape = Polygon(i => radius * Math.Max(0.04f, s.Stats[RadarOrder[i]] / top)))
         {
             using var fill = new SKPaint { Color = Cyan.WithAlpha(120), IsAntialias = true };
-            using var line = new SKPaint { Color = new SKColor(0xF0, 0xF8, 0xFF), IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 4, StrokeJoin = SKStrokeJoin.Round };
+            using var line = new SKPaint { Color = ColorTheme.Current.RadarInk, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 4, StrokeJoin = SKStrokeJoin.Round };
             c.DrawPath(shape, fill);
             c.DrawPath(shape, line);
-            using var dot = new SKPaint { Color = new SKColor(0xF0, 0xF8, 0xFF), IsAntialias = true };
+            using var dot = new SKPaint { Color = ColorTheme.Current.RadarInk, IsAntialias = true };
             for (var i = 0; i < 6; i++) c.DrawCircle(Point(i, radius * Math.Max(0.04f, s.Stats[RadarOrder[i]] / top)), 9, dot);
         }
         var nature = s.Fields?.StatNature ?? s.Nature;
@@ -523,7 +523,7 @@ public sealed class MonSummaryView : ContentView
     private void PaintSpeciesCard(SKCanvas c, float top, MonSummary s)
     {
         var card = new SKRect(24, top, 590, top + 430);
-        using (var shadow = new SKPaint { Color = new SKColor(0x06, 0x08, 0x14, 150), IsAntialias = true, MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, 7) })
+        using (var shadow = new SKPaint { Color = ColorTheme.Current.Shadow.WithAlpha(150), IsAntialias = true, MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, 7) })
             c.DrawRoundRect(SKRect.Create(card.Left, card.Top + 8, card.Width, card.Height), 28, 28, shadow);
         using (var fill = new SKPaint { Color = CardFill, IsAntialias = true }) c.DrawRoundRect(card, 28, 28, fill);
 
@@ -593,8 +593,6 @@ public sealed class MonSummaryView : ContentView
         _page.InvalidateSurface();
     }
 
-    private static readonly SKPaint ThumbPaint = new() { IsAntialias = true, Color = SKColors.White.WithAlpha(0x70) };
-
     private void PaintPage(object? sender, SKPaintSurfaceEventArgs args)
     {
         var watch = Stopwatch.StartNew();
@@ -604,7 +602,7 @@ public sealed class MonSummaryView : ContentView
 
         // The panel the tabs sit on, running off the right and bottom edges.
         var panel = new SKRect(0, PanelTop, size.Width + 40, size.Height + 40);
-        using (var shadow = new SKPaint { Color = new SKColor(0x06, 0x08, 0x14, 150), IsAntialias = true, MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, 7) })
+        using (var shadow = new SKPaint { Color = ColorTheme.Current.Shadow.WithAlpha(150), IsAntialias = true, MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, 7) })
             c.DrawRoundRect(SKRect.Create(panel.Left - 6, panel.Top + 8, panel.Width, panel.Height), 40, 40, shadow);
         using (var fill = new SKPaint { Color = PanelFill, IsAntialias = true }) c.DrawRoundRect(panel, 40, 40, fill);
         using (var rim = new SKPaint { Color = Cyan, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 4 })
@@ -621,7 +619,8 @@ public sealed class MonSummaryView : ContentView
         {
             var length = (float)Math.Max(40, viewport * viewport / _contentHeight);
             var y = ContentTop + (float)(_scrollY / MaxScroll) * (viewport - length);
-            c.DrawRoundRect(new SKRect(size.Width - 9, y, size.Width - 4, y + length), 2.5f, 2.5f, ThumbPaint);
+            using var thumb = new SKPaint { IsAntialias = true, Color = ColorTheme.Current.Bright.WithAlpha(0x70) };
+            c.DrawRoundRect(new SKRect(size.Width - 9, y, size.Width - 4, y + length), 2.5f, 2.5f, thumb);
         }
         PerfTrace.Log("summary.paint-page", watch);
     }
@@ -704,9 +703,9 @@ public sealed class MonSummaryView : ContentView
     {
         (SKColor Color, byte Edge, byte Middle)[] rows =
         [
-            (new SKColor(0x50, 0x96, 0xE6), 40, 210),
-            (new SKColor(0x28, 0x6E, 0xC8), 30, 150),
-            (new SKColor(0x14, 0x3C, 0x82), 20, 80),
+            (ColorTheme.Current.GlowHigh, 40, 210),
+            (ColorTheme.Current.GlowMid, 30, 150),
+            (ColorTheme.Current.GlowLow, 20, 80),
         ];
         for (var i = 0; i < rows.Length; i++)
         {
@@ -1012,8 +1011,8 @@ public sealed class MonSummaryView : ContentView
     // ── Plates and shapes ────────────────────────────────────────────────────
 
     // The category plates share one blue, the app's own, so they never read as a type.
-    private static readonly SKColor CategoryLight = new(0x4C, 0x7C, 0xC4);
-    private static readonly SKColor CategoryDark = new(0x1E, 0x40, 0x7C);
+    private static SKColor CategoryLight => ColorTheme.Current.ToolEdge;
+    private static SKColor CategoryDark => ColorTheme.Current.CategoryDark;
 
     private static void CategoryPlate(SKCanvas c, SKRect r, MoveCategory category)
     {

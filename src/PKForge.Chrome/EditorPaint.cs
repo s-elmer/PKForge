@@ -10,15 +10,17 @@ namespace PKForge.Chrome;
 /// </summary>
 public static class EditorPaint
 {
-    public static readonly SKColor Label = new(0x23, 0x60, 0xB0);
-    public static readonly SKColor Value = new(0xC6, 0xD2, 0xEE);
-    public static readonly SKColor Cyan = new(0x16, 0xB6, 0xDC);
-    public static readonly SKColor CyanFill = new(0x04, 0x28, 0x56);
-    public static readonly SKColor ExpInk = new(0x60, 0x7E, 0xBA);
-    public static readonly SKColor ChipInk = new(0xD2, 0xF0, 0xFF);
-    public static readonly SKColor ChipTop = new(0x14, 0x46, 0x82);
-    public static readonly SKColor ChipBottom = new(0x08, 0x28, 0x5A);
-    public static readonly SKColor Band = new(0x02, 0x11, 0x2B);
+    private static ColorTheme T => ColorTheme.Current;
+
+    public static SKColor Label => T.Label;
+    public static SKColor Value => T.Value;
+    public static SKColor Cyan => T.Rim;
+    public static SKColor CyanFill => T.RimFill;
+    public static SKColor ExpInk => T.SubInk;
+    public static SKColor ChipInk => T.ChipInk;
+    public static SKColor ChipTop => T.ChipTop;
+    public static SKColor ChipBottom => T.ChipBottom;
+    public static SKColor Band => T.Band;
 
     /// <summary>The panel width in the mockup: a panel's unit is its width over this.</summary>
     public const float DesignWidth = 740f;
@@ -148,7 +150,7 @@ public static class EditorPaint
         var w = sprite.Width * scale;
         var h = sprite.Height * scale;
         var dest = new SKRect(panel.Right - w + 40f * unit, panel.Bottom - h + 10f * unit, panel.Right + 40f * unit, panel.Bottom + 10f * unit);
-        using var paint = new SKPaint { Color = SKColors.White.WithAlpha(31) };
+        using var paint = new SKPaint { Color = ColorTheme.Current.Bright.WithAlpha(31) };
         c.Save();
         c.ClipRoundRect(new SKRoundRect(panel, 24f * unit), antialias: true);
         c.DrawImage(sprite, dest, sampling, paint);

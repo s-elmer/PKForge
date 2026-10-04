@@ -13,7 +13,7 @@ namespace PKForge.App.Views;
 /// </summary>
 public sealed class DsFolderButton : Grid
 {
-    private static readonly Color ChipInk = EditorPaint.ChipInk.ToMauiColor();
+    private static Color ChipInk => UiTokens.EditorChipInk;
     private readonly SKCanvasView _bg;
     private readonly Label _label;
     private readonly Label? _detail;

@@ -218,8 +218,8 @@ public sealed class DexGridView : SKCanvasView
 
         void Redraw() => MainThread.BeginInvokeOnMainThread(InvalidateSurface);
         using var number = new SKFont(PixelFont.Face, 24 * _unit);
-        using var numberInk = new SKPaint { Color = new SKColor(0x60, 0x7E, 0xBA), IsAntialias = true };
-        using var silhouette = new SKPaint { ColorFilter = SKColorFilter.CreateBlendMode(new SKColor(0x02, 0x0C, 0x22), SKBlendMode.SrcIn) };
+        using var numberInk = new SKPaint { Color = ColorTheme.Current.DexNumber, IsAntialias = true };
+        using var silhouette = new SKPaint { ColorFilter = SKColorFilter.CreateBlendMode(ColorTheme.Current.Silhouette, SKBlendMode.SrcIn) };
         using var dim = new SKPaint { Color = SKColors.White.WithAlpha(0x60) };
         var sampling = new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None);
         using var star = new SKFont(PixelFont.Face, 28 * _unit);
@@ -292,7 +292,7 @@ public sealed class DexGridView : SKCanvasView
             var thumbRect = _scroller.Thumb();
             if (held) thumbRect = new SKRect(thumbRect.Left - 6 * _unit, thumbRect.Top, thumbRect.Right, thumbRect.Bottom);
             using var track = new SKPaint { Color = StoragePaint.Well.WithAlpha((byte)(0xB0 * shown)), IsAntialias = true };
-            using var thumb = new SKPaint { Color = (held ? EditorPaint.Cyan : SKColors.White).WithAlpha((byte)((held ? 0xFF : 0x80) * shown)), IsAntialias = true };
+            using var thumb = new SKPaint { Color = (held ? EditorPaint.Cyan : ColorTheme.Current.Bright).WithAlpha((byte)((held ? 0xFF : 0x80) * shown)), IsAntialias = true };
             c.DrawRoundRect(Track(), 5 * _unit, 5 * _unit, track);
             c.DrawRoundRect(thumbRect, 5 * _unit, 5 * _unit, thumb);
         }
