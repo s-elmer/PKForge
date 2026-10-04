@@ -14,7 +14,11 @@ public sealed partial record ColorTheme
     public required string Name { get; init; }
 
     /// <summary>The theme every chrome color reads now.</summary>
-    public static ColorTheme Current { get; private set; } = ColorThemes.Default;
+    // Resolved on first read, not in a field initializer: building the themes in ColorThemes.All
+    // can run this type's static initializer (Android does), and All is not assigned yet then.
+    public static ColorTheme Current => _current ??= ColorThemes.Default;
+
+    private static ColorTheme? _current;
 
     /// <summary>Bumped on every change: caches of themed pixels key on it.</summary>
     public static int Version { get; private set; }
@@ -27,7 +31,7 @@ public sealed partial record ColorTheme
     {
         ArgumentNullException.ThrowIfNull(theme);
         if (ReferenceEquals(theme, Current)) return;
-        Current = theme;
+        _current = theme;
         Version++;
         Changed?.Invoke();
     }
