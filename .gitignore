@@ -55,5 +55,7 @@ tools/ChromePreview/out/
 # Local engineering handoff; contains working state and must never be committed.
 /docs/HANDOFF.md
 
+# Local docs, never committed
+/docs/*.md
 dist-diagnostic/
 dist/
