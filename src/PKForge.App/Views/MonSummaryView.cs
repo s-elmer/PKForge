@@ -29,7 +29,8 @@ public sealed class MonSummaryView : ContentView
 {
     // The design: a 1240×1080 screen split at 648 design pixels.
     private const float DesignWidth = 1240, DesignHeight = 1080, LeftWidth = 648, TabsHeight = 118;
-    private const float PanelTop = 110, ContentTop = 150, PX0 = 20;
+    // The panel's top rim runs through the middle of the tab strip, so the tabs sit across it.
+    private const float PanelTop = 73, ContentTop = 150, PX0 = 20;
     private const float LabelX = 42, ValueX = 282, LabelColumnRight = 252;
 
     private static readonly string[] StatCaps = ["HP", "Atk", "Def", "SpA", "SpD", "Spe"];
@@ -610,7 +611,7 @@ public sealed class MonSummaryView : ContentView
             c.DrawRoundRect(SKRect.Inflate(panel, -2, -2), 38, 38, rim);
 
         c.Save();
-        c.ClipRect(new SKRect(4, PanelTop + 4, size.Width, size.Height));
+        c.ClipRect(new SKRect(4, TabsHeight + 4, size.Width, size.Height)); // scrolled rows never show between the tabs
         c.Translate(0, ContentTop - (float)_scrollY);
         RenderPage(c, s, size.Width - PX0);
         c.Restore();
