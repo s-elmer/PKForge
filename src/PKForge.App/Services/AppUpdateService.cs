@@ -180,9 +180,13 @@ public sealed class AppUpdateService
             .SetAction(UpdateInstallReceiver.ActionName)!
             .PutExtra(UpdateInstallReceiver.ExtraApkPath, apkPath)!
             .PutExtra(UpdateInstallReceiver.ExtraAskedUser, askUser);
+        // Mutable on purpose: Android adds the install status (and the prompt to show) to this
+        // intent, and an immutable PendingIntent drops those extras, so every result would read
+        // as a plain failure. The intent names its receiver, which Android 14 requires of a
+        // mutable PendingIntent. Before Android 12, PendingIntents were mutable by default.
         var flags = Android.App.PendingIntentFlags.UpdateCurrent;
-        if (Android.OS.Build.VERSION.SdkInt >= Android.OS.BuildVersionCodes.M)
-            flags |= Android.App.PendingIntentFlags.Immutable;
+        if (Android.OS.Build.VERSION.SdkInt >= Android.OS.BuildVersionCodes.S)
+            flags |= Android.App.PendingIntentFlags.Mutable;
         var pending = Android.App.PendingIntent.GetBroadcast(
             context,
             UpdateInstallReceiver.RequestCode,
@@ -236,6 +240,8 @@ public sealed class UpdateInstallReceiver : Android.Content.BroadcastReceiver
         }
         if (userAction is not null && context is not null)
         {
+            // A receiver has no activity task of its own: without NewTask, StartActivity throws.
+            userAction.AddFlags(Android.Content.ActivityFlags.NewTask);
             context.StartActivity(userAction);
             return;
         }
