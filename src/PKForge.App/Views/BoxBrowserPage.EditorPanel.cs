@@ -70,10 +70,13 @@ public sealed partial class BoxBrowserPage
         var unit = args.Info.Width / EditorPaint.DesignWidth;
         StoragePaint.WellPanel(canvas, bounds, unit);
         if (EditedLook() is not { } look) return;
-        var sprite = _sprites.GetSprite(look);
+        void Redraw() => MainThread.BeginInvokeOnMainThread(() => _editorBackdrop?.InvalidateSurface());
+        // The Gen 5 front, as on the summary; the box sprite only when Showdown has none.
+        if (!_sprites.TryGetShowdownFront(look, Redraw, out var sprite)) return;
+        sprite ??= _sprites.GetSprite(look);
         if (sprite is null)
         {
-            _sprites.Warm(look, () => MainThread.BeginInvokeOnMainThread(() => _editorBackdrop?.InvalidateSurface()));
+            _sprites.Warm(look, Redraw);
             return;
         }
         using var image = SKImage.FromBitmap(sprite);

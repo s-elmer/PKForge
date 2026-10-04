@@ -150,7 +150,7 @@ public static class EditorPaint
         var w = sprite.Width * scale;
         var h = sprite.Height * scale;
         var dest = new SKRect(panel.Right - w + 40f * unit, panel.Bottom - h + 10f * unit, panel.Right + 40f * unit, panel.Bottom + 10f * unit);
-        using var paint = new SKPaint { Color = ColorTheme.Current.Bright.WithAlpha(31) };
+        using var paint = new SKPaint { Color = ColorTheme.Current.Bright.WithAlpha(24) };
         c.Save();
         c.ClipRoundRect(new SKRoundRect(panel, 24f * unit), antialias: true);
         c.DrawImage(sprite, dest, sampling, paint);
