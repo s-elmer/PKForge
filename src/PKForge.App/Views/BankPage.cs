@@ -681,6 +681,8 @@ public sealed class BankPage : ContentPage, IPadPagingHandler
             _bank.Move(carrying, _boxIndex, _selectedSlot);
             _carryId = null;
             RefreshBoxEntries();
+            // The panel and the lower screen still describe what the slot held before the drop.
+            UpdatePreview();
             UpdateStatus();
             _canvas.InvalidateSurface();
             return;

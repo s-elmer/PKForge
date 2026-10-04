@@ -67,6 +67,17 @@ public sealed class CarryHand
         _lift.Target = _holding ? 1 : 0;
     }
 
+    /// <summary>
+    /// Forgets the hand while another view draws the carry (the party deck): a carry that
+    /// ends there must not land on the box's cursor slot when the grid is drawn again.
+    /// </summary>
+    public void Reset()
+    {
+        _holding = false;
+        _landing = null;
+        _landingSlot = -1;
+    }
+
     /// <summary>True while a Pokémon is in hand (not while a dropped one settles).</summary>
     public bool Holding => _holding;
 

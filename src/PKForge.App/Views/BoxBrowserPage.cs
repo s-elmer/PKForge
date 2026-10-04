@@ -149,7 +149,8 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             if (args.PropertyName is nameof(BoxBrowserViewModel.Save) or nameof(BoxBrowserViewModel.BoxIndex)
                 or nameof(BoxBrowserViewModel.SelectedSlot) or nameof(BoxBrowserViewModel.VisibleSlots))
             {
-                RefreshLockedSlots();
+                // The locks follow the box's contents, not the cursor.
+                if (args.PropertyName is not nameof(BoxBrowserViewModel.SelectedSlot)) RefreshLockedSlots();
                 _canvas.InvalidateSurface();
                 _boxBar.InvalidateSurface();
             }
@@ -5303,6 +5304,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             PartyView.Paint(args.Surface.Canvas, args.Info, _sprites, _sessionsFor(), _viewModel.SelectedSlot, _frame.Request, _viewModel.CarrySource, phase,
                 isMarked: _viewModel.SelectMode ? slot => _viewModel.IsMarked(-1, slot) : null,
                 rangeMark: slot => _viewModel.InPendingRectangle(slot) ? _viewModel.PendingRectangle?.Mark : null);
+            _hand.Reset();
             EnsurePartyPulse();
             return;
         }

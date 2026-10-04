@@ -193,7 +193,8 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
             var report = _legality.Analyze(engineSession, BoxIndex, slot);
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                if (SelectedSlot != slot) return;
+                // Same slot is not enough: a move reselects it with new contents meanwhile.
+                if (SelectedSlot != slot || !ReferenceEquals(Selected, detail)) return;
                 LegalityChecks = report.Checks;
                 LegalityBadge = report.Valid ? "✓" : "✗";
                 LegalityText = string.Join('\n', report.Lines);
@@ -812,9 +813,28 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
         Status = "READY";
     }
 
-    /// <summary>Drops the carried mon on the cursor slot (move or swap), writing safely at once.</summary>
+    // Moves write in the order they were dropped, each against the bytes the previous one wrote.
+    private readonly SemaphoreSlim _moveWrites = new(1, 1);
+    // The last move's save being serialized off the UI thread: the session must not change under it.
+    private Task _serializing = Task.CompletedTask;
+    private int _movesInFlight;
+    private bool _dropWaiting;
+
+    /// <summary>
+    /// Drops the carried mon on the cursor slot (move or swap), writing safely at once. The grid
+    /// and the selection show the move before anything slow runs: serializing, checking and
+    /// writing the save (most of a second for a Scarlet/Violet save) run off the UI thread.
+    /// </summary>
     public async Task DropAsync()
     {
+        if (CarrySource is null || _dropWaiting) return;
+        if (!_serializing.IsCompleted)
+        {
+            // A quick second move: the Pokémon stays in hand until the first one's bytes are taken.
+            _dropWaiting = true;
+            try { await _serializing; }
+            finally { _dropWaiting = false; }
+        }
         var engineSession = _sessions.CurrentSession;
         var session = _sessions.Current;
         if (CarrySource is not { } source || engineSession is null || session is null) return;
@@ -828,10 +848,15 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
             return;
         }
 
+        var documentId = session.Document.DocumentId;
+        var writing = false;
         try
         {
             IsBusy = true;
+            _movesInFlight++;
             engineSession.MoveSlot(source.Box, source.Slot, target.Box, target.Slot);
+            // The verdicts already swept describe the slots before the move.
+            BumpMutationGeneration();
             // Show the move at once: the grid would otherwise keep the old slots until the
             // write below returns, the Pokémon drawn in both places and then gone from one.
             foreach (var (box, slot) in new[] { (source.Box, source.Slot), (target.Box, target.Slot) })
@@ -849,16 +874,21 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
                     };
             }
             OnPropertyChanged(nameof(VisibleSlots));
-            var candidate = engineSession.Serialize();
-            var receipt = await _writer.WriteScopedAsync(session.Document.DocumentId, session.Snapshot, candidate,
-                WriteScope.Only(new SlotRef(source.Box, source.Slot), new SlotRef(target.Box, target.Slot)),
-                $"Move {(carried is { } summary ? summary.Nickname ?? $"#{summary.Species}" : "Pokémon")}: {SlotLabel(source.Box, source.Slot)} -> {SlotLabel(target.Box, target.Slot)}");
-            if (receipt.Changed)
-            {
-                _sessions.MarkWritten(session.Document.DocumentId, candidate);
-                BumpMutationGeneration();
-            }
             SelectSlot(target.Slot);
+            var serialize = Task.Run(engineSession.Serialize);
+            _serializing = serialize.ContinueWith(static _ => { }, TaskScheduler.Default);
+            await _moveWrites.WaitAsync();
+            writing = true;
+            var candidate = await serialize;
+            // The previous move's write is this one's original.
+            var original = _sessions.Current is { } current && current.Document.DocumentId == documentId
+                ? current.Snapshot
+                : throw new InvalidOperationException("The save was closed before the move was written.");
+            var receipt = await Task.Run(() => _writer.WriteScopedAsync(documentId, original, candidate,
+                WriteScope.Only(new SlotRef(source.Box, source.Slot), new SlotRef(target.Box, target.Slot)),
+                $"Move {(carried is { } summary ? summary.Nickname ?? $"#{summary.Species}" : "Pokémon")}: {SlotLabel(source.Box, source.Slot)} -> {SlotLabel(target.Box, target.Slot)}").AsTask());
+            if (receipt.Changed)
+                _sessions.MarkWritten(documentId, candidate);
             Status = receipt.Changed
                 ? $"MOVED · restore point {ShortBackupId(receipt)}"
                 : "Nothing changed - no write, no restore point.";
@@ -870,7 +900,8 @@ public partial class BoxBrowserViewModel : ObservableObject, IBoxPager
         }
         finally
         {
-            IsBusy = false;
+            if (writing) _moveWrites.Release();
+            IsBusy = --_movesInFlight > 0;
         }
     }
 
