@@ -599,9 +599,11 @@ public sealed class HomePage : ContentPage, IPadHandler
         };
         if (hiddenCount > 0) options.Add(new PadOption(hiddenOption, IconPath: "show", Detail: "Saves you hid from Home. Pick one to show it again."));
         var scheme = $"Color scheme: {PKForge.Chrome.ColorTheme.Current.Name}";
+        var background = $"Box background: {BoxBackground.Name(BoxBackground.Style)}";
         options.AddRange(
         [
             new PadOption(scheme, IconPath: "palette", Detail: "The app's colors: the default blues or a theme for each type."),
+            new PadOption(background, IconPath: "box", Detail: "How each PC box shows the wallpaper the game gives it."),
             new PadOption("Restore points", IconPath: "history", Detail: "The backups made before each write, to put a save back as it was."),
             new PadOption("About PKForge", IconPath: "info"),
             new PadOption("Check for update", IconPath: "update"),
@@ -612,6 +614,7 @@ public sealed class HomePage : ContentPage, IPadHandler
         var choice = await PadMenu.ShowAsync(_hostGrid, "Settings", null, [.. options]);
         if (choice == hiddenOption) { await ShowHiddenSavesAsync(); return; }
         if (choice == scheme) { await ShowColorSchemeAsync(); return; }
+        if (choice == background) { await ShowBoxBackgroundAsync(); return; }
         switch (choice)
         {
             case "Link an emulator": await ShowLinkMenuAsync(); break;
@@ -872,6 +875,24 @@ public sealed class HomePage : ContentPage, IPadHandler
         }
     }
 
+    /// <summary>How each PC box shows its game wallpaper.</summary>
+    private async Task ShowBoxBackgroundAsync()
+    {
+        var styles = Enum.GetValues<PKForge.Chrome.StoragePaint.WallpaperStyle>();
+        var picked = await PadMenu.ShowAsync(_hostGrid, "Box background", null,
+            [
+                new PadOption(BoxBackground.Name(PKForge.Chrome.StoragePaint.WallpaperStyle.Blue), Detail: "The game's wallpaper pattern in the color scheme's tones."),
+                new PadOption(BoxBackground.Name(PKForge.Chrome.StoragePaint.WallpaperStyle.Veiled), Detail: "The game's wallpaper under a veil of the color scheme."),
+                new PadOption(BoxBackground.Name(PKForge.Chrome.StoragePaint.WallpaperStyle.Duotone), Detail: "The wallpaper's pattern in two tones, the color scheme's to its own."),
+                new PadOption(BoxBackground.Name(PKForge.Chrome.StoragePaint.WallpaperStyle.Horizon), Detail: "The wallpaper rises from the bottom and fades into the color scheme."),
+            ]);
+        foreach (var style in styles.Where(style => BoxBackground.Name(style) == picked))
+        {
+            BoxBackground.Set(style);
+            _viewModel.Status = $"Box background: {BoxBackground.Name(style)}.";
+        }
+    }
+
     /// <summary>The color scheme picker; a new scheme rebuilds Home and the lower screen in its colors.</summary>
     private async Task ShowColorSchemeAsync()
     {
@@ -897,8 +918,6 @@ public sealed class HomePage : ContentPage, IPadHandler
             new PadOption("Share logs", IconPath: "export", Detail: "Crash reports and recent activity, to send us when something goes wrong."),
             new PadOption(SecondScreenMode.UserOff ? "Second screen: OFF" : "Second screen: ON", IconPath: "compact",
                 Detail: "OFF keeps PKForge on one screen, so the other stays free (an emulator, say)."),
-            new PadOption($"Box background: {BoxBackground.Name(BoxBackground.Style)}", IconPath: "box",
-                Detail: "How each PC box shows the wallpaper the game gives it."),
             new PadOption(Services.HaXMode.IsOn ? "HaX mode: ON" : "HaX mode: OFF", IconPath: "hax",
                 Detail: "ON lets pickers offer any option, even illegal ones."),
             new PadOption(Services.HardcoreMode.IsOn ? "Hardcore mode: ON" : "Hardcore mode: OFF", IconPath: "hardcore",
@@ -927,23 +946,6 @@ public sealed class HomePage : ContentPage, IPadHandler
             case "Share logs":
                 await ShareLogsAsync();
                 break;
-            case var background when background?.StartsWith("Box background:", StringComparison.Ordinal) == true:
-            {
-                var styles = Enum.GetValues<PKForge.Chrome.StoragePaint.WallpaperStyle>();
-                var picked = await PadMenu.ShowAsync(_hostGrid, "Box background", null,
-                    [
-                        new PadOption(BoxBackground.Name(PKForge.Chrome.StoragePaint.WallpaperStyle.Blue), Detail: "The game's wallpaper pattern in the app's blues."),
-                        new PadOption(BoxBackground.Name(PKForge.Chrome.StoragePaint.WallpaperStyle.Veiled), Detail: "The game's wallpaper under a navy veil."),
-                        new PadOption(BoxBackground.Name(PKForge.Chrome.StoragePaint.WallpaperStyle.Duotone), Detail: "The wallpaper's pattern in two tones, navy to its own colour."),
-                        new PadOption(BoxBackground.Name(PKForge.Chrome.StoragePaint.WallpaperStyle.Horizon), Detail: "The wallpaper rises from the bottom and fades into the navy."),
-                    ]);
-                foreach (var style in styles.Where(style => BoxBackground.Name(style) == picked))
-                {
-                    BoxBackground.Set(style);
-                    _viewModel.Status = $"Box background: {BoxBackground.Name(style)}.";
-                }
-                break;
-            }
             case "Second screen: ON" or "Second screen: OFF":
             {
                 var turnOff = !SecondScreenMode.UserOff;

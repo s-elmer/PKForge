@@ -47,6 +47,7 @@ public static class StoragePaint
     }
 
     /// <summary>How a box's own wallpaper shows in the well (a player setting).</summary>
+    // Blue is the default style's stored name, kept from before color schemes.
     public enum WallpaperStyle { Blue, Veiled, Duotone, Horizon }
 
     /// <summary>
@@ -103,7 +104,7 @@ public static class StoragePaint
             }
             case WallpaperStyle.Blue:
             {
-                // The art's light and shade painted in quiet shades of the app's blue.
+                // The art's light and shade painted in quiet shades of the color scheme.
                 using var map = new SKPaint { ColorFilter = BlueMap(art) };
                 c.DrawImage(art, source, well, sampling, map);
                 break;
