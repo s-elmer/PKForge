@@ -95,8 +95,17 @@ public sealed class CfruPk3ConversionTests(ITestOutputHelper output)
             if (hack.Item == 0) Assert.Equal(0, pk3.HeldItem);
             else Assert.True(Key(hack.ItemName) == Key(Strings.itemlist[ItemConverter.GetItemFuture3((ushort)pk3.HeldItem)]),
                 $"{where}: {hack.ItemName} became {Strings.itemlist[ItemConverter.GetItemFuture3((ushort)pk3.HeldItem)]}");
-            Assert.True(Key(hack.Ability) == Key(Strings.abilitylist[pk3.Ability]), $"{where}: {hack.Ability} became {Strings.abilitylist[pk3.Ability]}");
-            Assert.Equal(hack.Ball, pk3.Ball);
+            // A ball or ability Generation 3 lacks crosses as a Poké Ball or the PID's ability,
+            // and the change is reported; everything else keeps its own.
+            var adjustments = CfruEntity.Pk3Adjustments(export.Data, export.Format!);
+            if (Key(hack.Ability) != Key(Strings.abilitylist[pk3.Ability]))
+                Assert.Contains(adjustments, line => line.Contains(Strings.abilitylist[pk3.Ability]));
+            if (hack.Ball is > 0 and <= 12) Assert.Equal(hack.Ball, pk3.Ball);
+            else
+            {
+                Assert.Equal((int)Ball.Poke, pk3.Ball);
+                Assert.Contains(adjustments, line => line.Contains("Poké Ball"));
+            }
             converted++;
         }
         output.WriteLine($"{file}: {converted} converted; refused: {string.Join(", ", refusals.Select(r => $"{r.Key} {r.Value}"))}");

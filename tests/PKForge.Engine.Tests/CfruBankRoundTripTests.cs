@@ -295,9 +295,9 @@ public sealed class CfruBankRoundTripTests : IDisposable
         if (Demo(RadicalRedSave) is not { } bytes || Demo(UnboundSave) is not { } unboundBytes) return;
         using var session = _engine.OpenSession(bytes, "Radical Red");
         var kirlia = session.ExportSlot(0, 0); // Kirlia exists in Gen 3, its Quick Ball does not
-        Assert.Null(EntityBytes.Parse(kirlia.Data, kirlia.Format));
-        Assert.Contains("Kirlia is in a Quick Ball, which Generation 3 does not have. Only Radical Red can take it.",
-            TransferCompatibility.ExplainRefusal(kirlia.Data, "Kirlia", "Gen3", 3, "Emerald", kirlia.Format));
+        Assert.Equal((int)PKHeX.Core.Ball.Poke, EntityBytes.Parse(kirlia.Data, kirlia.Format)!.Ball);
+        Assert.Contains("Its Quick Ball becomes a Poké Ball: Generation 3 does not have it.",
+            CfruEntity.Pk3Adjustments(kirlia.Data, kirlia.Format!));
         var (convertible, pk3) = session.Snapshot.Slots.Where(s => s.Species is not null)
             .Select(s => session.ExportSlot(s.Box, s.Slot))
             .Select(e => (Export: e, Pk3: EntityBytes.Parse(e.Data, e.Format)))

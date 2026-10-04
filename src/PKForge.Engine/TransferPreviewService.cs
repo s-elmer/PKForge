@@ -91,7 +91,11 @@ public sealed class TransferPreviewService
             return null;
         var after = session.GetEntity(box, slot);
         var legality = AnalyzeLegality(session, box, slot, out var lines);
-        return new TransferPreview([.. Diff(before, after)], legality, lines, conversion.Warnings, conversion.Backwards);
+        // A ROM hack Pokémon crosses as a PK3: what that changed comes before the import's own notes.
+        IReadOnlyList<string> warnings = CfruEntity.Recognize(format) is { } hack
+            ? [.. CfruEntity.Pk3Adjustments(entityBytes, hack), .. conversion.Warnings]
+            : conversion.Warnings;
+        return new TransferPreview([.. Diff(before, after)], legality, lines, warnings, conversion.Backwards);
     }
 
     private TransferLegality AnalyzeLegality(SaveEngineSession session, int box, int slot, out IReadOnlyList<string> lines)

@@ -681,14 +681,14 @@ internal sealed class UnboundEngineSession : ISaveEngineSession
     /// <summary>The PK3 another game imports: every id bridged to its national twin through
     /// Unbound's tables, none of the CFRU-only fields (only Unbound itself reads the exact
     /// record). Null with the reason when an id has no Generation 3 counterpart.</summary>
-    internal static PK3? ToPk3(UnboundMon mon, out string? refusal)
+    internal static PK3? ToPk3(UnboundMon mon, out string? refusal, List<string>? adjustments = null)
     {
         var national = UnboundData.NationalIdOf(mon.Species);
         var pk3 = CfruPk3.ToPk3(new CfruPk3.Outbound(
             UnboundData.SpeciesName(mon.Species), national, UnboundData.SpeciesFromNational(national) == mon.Species, mon.Pid,
             [.. mon.Moves.Select(move => (move, UnboundData.MoveToNational(move), UnboundData.MoveName(move)))],
             mon.HeldItem, UnboundData.ItemToNational(mon.HeldItem), UnboundData.ItemName(mon.HeldItem),
-            mon.HiddenAbility, UnboundData.AbilityToNational(UnboundData.ActiveAbility(mon)), mon.DisplayBall), out refusal);
+            mon.HiddenAbility, UnboundData.AbilityToNational(UnboundData.ActiveAbility(mon)), mon.DisplayBall), out refusal, adjustments);
         if (pk3 is null) return null;
         pk3.ID32 = mon.Otid;
         pk3.Nickname = mon.Nickname;

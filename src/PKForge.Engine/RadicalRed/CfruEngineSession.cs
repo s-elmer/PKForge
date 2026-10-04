@@ -696,7 +696,7 @@ internal class CfruEngineSession : ISaveEngineSession
     /// tables, none of the CFRU-only fields (only the export's own game reads the exact
     /// record). Null with the reason when an id has no Generation 3 counterpart.
     /// </summary>
-    internal static PK3? ToPk3(RadicalRedMon mon, out string? refusal)
+    internal static PK3? ToPk3(RadicalRedMon mon, out string? refusal, List<string>? adjustments = null)
     {
         var data = mon.Data;
         var national = data.NationalIdOf(mon.Species);
@@ -705,7 +705,7 @@ internal class CfruEngineSession : ISaveEngineSession
             data.SpeciesName(mon.Species), national, data.SpeciesFromNational(national) == mon.Species, mon.Pid,
             [.. moves.Select(move => (move, data.MoveToNational(move), data.MoveName(move)))],
             mon.HeldItem, data.ItemToNational(mon.HeldItem), data.ItemName(mon.HeldItem),
-            mon.HiddenAbility, data.ActiveAbility(mon), mon.DisplayBall), out refusal);
+            mon.HiddenAbility, data.ActiveAbility(mon), mon.DisplayBall), out refusal, adjustments);
         if (pk3 is null) return null;
         pk3.ID32 = mon.Otid;
         pk3.Nickname = mon.Nickname;

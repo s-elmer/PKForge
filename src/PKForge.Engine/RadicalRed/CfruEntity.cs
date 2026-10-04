@@ -100,6 +100,15 @@ internal static class CfruEntity
     /// game or one of its ids has no Generation 3 counterpart (<see cref="Pk3Refusal"/> says which).</summary>
     public static PK3? ToPk3(byte[] bytes, string format) => ToPk3(bytes, format, out _);
 
+    /// <summary>What changed for these bytes to fit Generation 3 on their way to another game
+    /// (a ball or ability it lacks); empty when nothing did or they do not convert.</summary>
+    public static IReadOnlyList<string> Pk3Adjustments(byte[] bytes, string format)
+    {
+        var adjustments = new List<string>();
+        ToPk3(bytes, format, out _, adjustments);
+        return adjustments;
+    }
+
     /// <summary>Why these bytes have no PK3 for other games, or null when they convert.</summary>
     public static string? Pk3Refusal(byte[] bytes, string format)
     {
@@ -107,17 +116,17 @@ internal static class CfruEntity
         return refusal;
     }
 
-    private static PK3? ToPk3(byte[] bytes, string format, out string? refusal)
+    private static PK3? ToPk3(byte[] bytes, string format, out string? refusal, List<string>? adjustments = null)
     {
         refusal = null;
         if (bytes.Length != RadicalRedFormat.PcMonSize) return null;
         if (format == Unbound)
         {
             var mon = new UnboundMon(bytes.ToArray(), 0, party: false);
-            return mon.LooksValid ? UnboundEngineSession.ToPk3(mon, out refusal) : null;
+            return mon.LooksValid ? UnboundEngineSession.ToPk3(mon, out refusal, adjustments) : null;
         }
         var cfru = new RadicalRedMon(bytes.ToArray(), 0, false, DataOf(format));
-        return cfru.LooksValid ? CfruEngineSession.ToPk3(cfru, out refusal) : null;
+        return cfru.LooksValid ? CfruEngineSession.ToPk3(cfru, out refusal, adjustments) : null;
     }
 
     /// <summary>Why <paramref name="entity"/> cannot enter the CFRU game whose snapshot reports
