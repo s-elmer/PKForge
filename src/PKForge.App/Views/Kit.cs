@@ -465,7 +465,9 @@ public static class Kit
     // The designer's drawn keys, by footer glyph; the others keep the drawn disc.
     private static readonly Dictionary<string, string> KeyArt = new()
     {
-        ["A"] = "key_a", ["+"] = "key_plus", ["L"] = "key_l", ["X"] = "key_x", ["Y"] = "key_y",
+        ["A"] = "key_a", ["B"] = "key_b", ["X"] = "key_x", ["Y"] = "key_y",
+        ["L"] = "key_l", ["R"] = "key_r", ["LR"] = "key_lr",
+        ["+"] = "key_plus", ["-"] = "key_minus", ["−"] = "key_minus",
     };
 
     private static readonly Dictionary<string, SKImage?> KeyImages = new();
@@ -485,8 +487,8 @@ public static class Kit
     }
 
     /// <summary>
-    /// A footer key: the designer's pixel button tinted cyan for A, +, L, X and Y, and a round
-    /// cyan disc with the glyph for the rest (B, −, LR ...).
+    /// A footer key: the designer's pixel button tinted cyan for the console's buttons, and a
+    /// round cyan disc with the glyph for the rest (TAP, ↑↓ ...).
     /// </summary>
     public static Border GlyphKey(string glyph, Action? onTap = null)
     {
