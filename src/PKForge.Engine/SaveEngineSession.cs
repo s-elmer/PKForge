@@ -9,6 +9,8 @@ namespace PKForge.Engine;
 public sealed class SaveEngineSession : ISaveEngineSession
 {
     private readonly SaveFile _save;
+    static SaveEngineSession() => LegalityRules.Apply();
+
     private readonly byte[] _originalBytes;
     private readonly string? _displayName;
     private bool _disposed;

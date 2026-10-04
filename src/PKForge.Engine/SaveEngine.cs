@@ -6,6 +6,8 @@ namespace PKForge.Engine;
 /// <summary>Adapts the pinned PKHeX.Core save parser without leaking engine types.</summary>
 public sealed class SaveEngine : IFormatAwareSaveEngine
 {
+    static SaveEngine() => LegalityRules.Apply();
+
     /// <summary>
     /// Opens through the user's chosen route, but only when the bytes carry that layout:
     /// the stock engine on a CFRU save (or a CFRU engine on a retail one) would corrupt
