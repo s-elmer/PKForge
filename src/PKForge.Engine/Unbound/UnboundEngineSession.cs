@@ -1019,6 +1019,9 @@ internal sealed class UnboundEngineSession : ISaveEngineSession
     public DaycareWithdrawal WithdrawDaycareToFirstEmptyBox(int facility, int slot) => throw NotYet("The Unbound Day Care");
     public bool SupportsLegalFashionUnlock => false;
     public void UnlockAllLegalFashion() { }
+    public bool SupportsStylePoints => false;
+    public int GetStylePoints() => 0;
+    public void SetStylePoints(int value) { }
     public MysteryGiftInbox GetMysteryGiftInbox() => new(false, []);
     public TrainerRecordsInfo GetTrainerRecords() => new(false, []);
     public TrainerStats GetTrainerStats() => new(false, 0, 0, 0, false, 0, 0, false, 0, 0);

@@ -196,6 +196,10 @@ public interface ISaveEngineSession : IDisposable
     bool SupportsLegalFashionUnlock { get; }
     /// <summary>Unlocks only clothing the current game/version can legitimately own.</summary>
     void UnlockAllLegalFashion();
+    /// <summary>Whether this save has the X/Y Style value (Lumiose boutique and restaurant access).</summary>
+    bool SupportsStylePoints { get; }
+    int GetStylePoints();
+    void SetStylePoints(int value);
 
     // ── Mystery Gift inbox ──
     /// <summary>Cards and received-gift records stored by the save. This surface is read-only.</summary>

@@ -2386,7 +2386,7 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             new PadOption("Trainer card", IconPath: "trainer"),
             new PadOption("Bag & items", IconPath: "bag"),
             new PadOption("Pokédex", IconPath: "pokedex"),
-            Allowed(SaveAction.EditTrainer, new("Fashion", IconPath: "box", Detail: "Unlock every outfit this save can legally own (Sword and Shield).")),
+            Allowed(SaveAction.EditTrainer, new("Fashion", IconPath: "box", Detail: "Unlock every outfit this save can legally own (X, Y, Sword and Shield).")),
             new PadOption("Trainer records", IconPath: "records", Detail: "The game's own trainer records, view only."),
             Allowed(SaveAction.WriteRawBytes, new("Byte manipulation", IconPath: "hex", Detail: "Edit the save file's raw bytes. Written once, when you close.")),
             // Viewable in Hardcore mode; the editor itself refuses writes (EditWorld).
@@ -2545,7 +2545,12 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
         if (!session.SupportsLegalFashionUnlock)
         {
             await EditorMenu.ShowAsync(_hostGrid, "Fashion",
-                "Legal wardrobe unlocks are currently available for Pokémon Sword and Shield only.", "OK");
+                "Legal wardrobe unlocks are available for Pokémon X, Y, Sword and Shield only.", "OK");
+            return;
+        }
+        if (session.SupportsStylePoints)
+        {
+            await ShowFashionXYAsync(session);
             return;
         }
         var confirmed = await PadMenu.ConfirmAsync(_hostGrid, "Unlock legal fashion?",
@@ -2556,6 +2561,34 @@ public sealed partial class BoxBrowserPage : ContentPage, IPadPagingHandler, IPa
             s.UnlockAllLegalFashion();
             return new GenerationOutcome(true, "All legal fashion items unlocked.");
         }, Math.Max(0, _viewModel.SelectedSlot), action: SaveAction.EditTrainer);
+    }
+
+    private async Task ShowFashionXYAsync(ISaveEngineSession session)
+    {
+        var choice = await PadMenu.ShowAsync(_hostGrid, "Fashion", Note(null),
+            new PadOption("Unlock all clothes", IconPath: "box", Detail: "Every outfit and accessory your trainer can wear."),
+            new PadOption("Max Style", IconPath: "trainer", Detail: $"Style is {session.GetStylePoints()} of {byte.MaxValue}. High Style opens the Lumiose boutiques and restaurants."));
+        switch (choice)
+        {
+            case "Unlock all clothes":
+                if (!await PadMenu.ConfirmAsync(_hostGrid, "Unlock all clothes?",
+                    "Unlock every outfit this X or Y save can own. A restore point is created first.", "Unlock")) return;
+                await _viewModel.RunMutationAsync(s =>
+                {
+                    s.UnlockAllLegalFashion();
+                    return new GenerationOutcome(true, "All clothes unlocked.");
+                }, Math.Max(0, _viewModel.SelectedSlot), action: SaveAction.EditTrainer);
+                return;
+            case "Max Style":
+                if (!await PadMenu.ConfirmAsync(_hostGrid, "Set Style to max?",
+                    "Lets you into every Lumiose boutique and restaurant without earning Style. A restore point is created first.", "Set")) return;
+                await _viewModel.RunMutationAsync(s =>
+                {
+                    s.SetStylePoints(byte.MaxValue);
+                    return new GenerationOutcome(true, "Style set to max.");
+                }, Math.Max(0, _viewModel.SelectedSlot), action: SaveAction.EditTrainer);
+                return;
+        }
     }
 
     private async Task ShowTrainerRecordsAsync()

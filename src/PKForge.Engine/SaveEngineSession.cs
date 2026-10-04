@@ -1886,14 +1886,38 @@ public sealed class SaveEngineSession : ISaveEngineSession
 
     // ── Fashion ────────────────────────────────────────────────────────────
 
-    public bool SupportsLegalFashionUnlock => _save is SAV8SWSH;
+    public bool SupportsLegalFashionUnlock => _save is SAV8SWSH or SAV6XY;
 
     public void UnlockAllLegalFashion()
     {
         ThrowIfDisposed();
-        if (_save is not SAV8SWSH save)
-            throw new NotSupportedException("Legal wardrobe unlocks are currently supported for Pokémon Sword and Shield only.");
-        save.Fashion.UnlockAllLegal();
+        switch (_save)
+        {
+            case SAV8SWSH swsh: swsh.Fashion.UnlockAllLegal(); break;
+            // PKHeX's X/Y routine writes the fixed "everything owned" pattern, which keeps
+            // the unused and unobtainable bits clear.
+            case SAV6XY xy: xy.Fashion.UnlockAllAccessories(); break;
+            default: throw new NotSupportedException("Legal wardrobe unlocks are supported for Pokémon X, Y, Sword and Shield only.");
+        }
+    }
+
+    /// <summary>The X/Y Style field is one byte; PKHeX's trainer editor accepts 0-255.</summary>
+    public const int MaxStylePoints = byte.MaxValue;
+
+    public bool SupportsStylePoints => _save is SAV6XY;
+
+    public int GetStylePoints()
+    {
+        ThrowIfDisposed();
+        return _save is SAV6XY xy ? xy.Situation.Style : 0;
+    }
+
+    public void SetStylePoints(int value)
+    {
+        ThrowIfDisposed();
+        if (_save is not SAV6XY xy)
+            throw new NotSupportedException("Style points exist in Pokémon X and Y only.");
+        xy.Situation.Style = Math.Clamp(value, 0, MaxStylePoints);
     }
 
     // ── Mystery Gift inbox ────────────────────────────────────────────────
