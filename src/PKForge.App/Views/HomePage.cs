@@ -598,8 +598,10 @@ public sealed class HomePage : ContentPage, IPadHandler
             new("Open a save file", IconPath: "file", Detail: "Pick one save file instead of a whole emulator folder."),
         };
         if (hiddenCount > 0) options.Add(new PadOption(hiddenOption, IconPath: "show", Detail: "Saves you hid from Home. Pick one to show it again."));
+        var scheme = $"Color scheme: {PKForge.Chrome.ColorTheme.Current.Name}";
         options.AddRange(
         [
+            new PadOption(scheme, IconPath: "palette", Detail: "The app's colors: the default blues or a theme for each type."),
             new PadOption("Restore points", IconPath: "history", Detail: "The backups made before each write, to put a save back as it was."),
             new PadOption("About PKForge", IconPath: "info"),
             new PadOption("Check for update", IconPath: "update"),
@@ -609,6 +611,7 @@ public sealed class HomePage : ContentPage, IPadHandler
         ]);
         var choice = await PadMenu.ShowAsync(_hostGrid, "Settings", null, [.. options]);
         if (choice == hiddenOption) { await ShowHiddenSavesAsync(); return; }
+        if (choice == scheme) { await ShowColorSchemeAsync(); return; }
         switch (choice)
         {
             case "Link an emulator": await ShowLinkMenuAsync(); break;
@@ -869,6 +872,16 @@ public sealed class HomePage : ContentPage, IPadHandler
         }
     }
 
+    /// <summary>The color scheme picker; a new scheme rebuilds Home and the lower screen in its colors.</summary>
+    private async Task ShowColorSchemeAsync()
+    {
+        var theme = await ThemePicker.ShowAsync(_hostGrid);
+        if (theme is null || theme.Id == PKForge.Chrome.ColorTheme.Current.Id) return;
+        ColorThemeSetting.Set(theme);
+        AppLog.Info("theme", $"Player picked the {theme.Id} color scheme");
+        if (Application.Current is App app) await app.ReloadForThemeAsync();
+    }
+
     /// <summary>Maintenance actions: the sprite pack, the rescan, and the scan report.</summary>
     private async Task ShowMiscAsync()
     {
@@ -884,8 +897,6 @@ public sealed class HomePage : ContentPage, IPadHandler
             new PadOption("Share logs", IconPath: "export", Detail: "Crash reports and recent activity, to send us when something goes wrong."),
             new PadOption(SecondScreenMode.UserOff ? "Second screen: OFF" : "Second screen: ON", IconPath: "compact",
                 Detail: "OFF keeps PKForge on one screen, so the other stays free (an emulator, say)."),
-            new PadOption($"Color scheme: {PKForge.Chrome.ColorTheme.Current.Name}", IconPath: "type",
-                Detail: "The app's colors: the default blues or a theme for each type."),
             new PadOption($"Box background: {BoxBackground.Name(BoxBackground.Style)}", IconPath: "box",
                 Detail: "How each PC box shows the wallpaper the game gives it."),
             new PadOption(Services.HaXMode.IsOn ? "HaX mode: ON" : "HaX mode: OFF", IconPath: "hax",
@@ -916,15 +927,6 @@ public sealed class HomePage : ContentPage, IPadHandler
             case "Share logs":
                 await ShareLogsAsync();
                 break;
-            case var scheme when scheme?.StartsWith("Color scheme:", StringComparison.Ordinal) == true:
-            {
-                var theme = await ThemePicker.ShowAsync(_hostGrid);
-                if (theme is null || theme.Id == PKForge.Chrome.ColorTheme.Current.Id) break;
-                ColorThemeSetting.Set(theme);
-                AppLog.Info("theme", $"Player picked the {theme.Id} color scheme");
-                if (Application.Current is App app) await app.ReloadForThemeAsync();
-                break;
-            }
             case var background when background?.StartsWith("Box background:", StringComparison.Ordinal) == true:
             {
                 var styles = Enum.GetValues<PKForge.Chrome.StoragePaint.WallpaperStyle>();
