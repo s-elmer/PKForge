@@ -68,9 +68,8 @@ public sealed class SecondScreenBoxPage : ContentPage
             VerticalOptions = LayoutOptions.Center,
             Children =
             {
-                PksmIcons.Icon("storage", 64),
+                new Image { Source = ThemeLogo.Source(), WidthRequest = 96, HeightRequest = 96, HorizontalOptions = LayoutOptions.Center },
                 new Label { Text = "PKFORGE", TextColor = UiTokens.Ink0, FontSize = 22, FontAttributes = FontAttributes.Bold, CharacterSpacing = 4, HorizontalTextAlignment = TextAlignment.Center },
-                new Label { Text = "POKéMON STORAGE SYSTEM", TextColor = UiTokens.Ink1, FontSize = 11, CharacterSpacing = 2, HorizontalTextAlignment = TextAlignment.Center },
             },
         };
 

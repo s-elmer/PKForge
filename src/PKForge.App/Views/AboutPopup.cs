@@ -1,3 +1,4 @@
+using PKForge.App.Services;
 using PKForge.App.Theme;
 
 namespace PKForge.App.Views;
@@ -8,7 +9,6 @@ namespace PKForge.App.Views;
 /// </summary>
 public static class AboutPopup
 {
-    private static byte[]? _logoPng;
 
     public static Task ShowAsync(Grid host)
     {
@@ -79,7 +79,7 @@ public static class AboutPopup
             },
         };
 
-        var source = LogoSource();
+        var source = ThemeLogo.Source();
         if (source is not null)
         {
             content.Children.Insert(1, new Image
@@ -96,26 +96,5 @@ public static class AboutPopup
         overlay = Kit.AttachOverlay(host, window, () => Close());
         pad = new PadOverlay(() => Close(), () => Close());
         return result.Task;
-    }
-
-    /// <summary>The bundled logo (Resources/AppIcon/pkforge.png, shipped as ui/logo.png).</summary>
-    private static ImageSource? LogoSource()
-    {
-        if (_logoPng is null)
-        {
-            try
-            {
-                using var stream = FileSystem.OpenAppPackageFileAsync("ui/logo.png").GetAwaiter().GetResult();
-                using var copy = new MemoryStream();
-                stream.CopyTo(copy);
-                _logoPng = copy.ToArray();
-            }
-            catch
-            {
-                return null; // the panel works without art; never block About on assets
-            }
-        }
-        var png = _logoPng;
-        return ImageSource.FromStream(() => new MemoryStream(png));
     }
 }
